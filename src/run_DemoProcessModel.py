@@ -9,10 +9,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from numba import jit
 
-os.chdir("/home/robert/Projects/LakePIAB/src")
+os.chdir("/home/robert/Projects/WQ_MCL/src")
 #os.chdir("C:/Users/ladwi/Documents/Projects/R/LakePIAB/src")
 #from oneD_HeatMixing_Functions import get_hyp()sography, provide_meteorology, initial_profile, run_thermalmodel_v1, run_hybridmodel_heating, run_hybridmodel_mixing, run_thermalmodel_v2
-from processBased_lakeModel_functions import get_hypsography, provide_meteorology, initial_profile, run_thermalmodel, run_thermalmodel_specific, run_thermalmodel_test #, heating_module, diffusion_module, mixing_module, convection_module, ice_module
+from processBased_lakeModel_functions import get_hypsography, provide_meteorology, initial_profile, run_wq_model #, heating_module, diffusion_module, mixing_module, convection_module, ice_module
 
 
 ## lake configurations
@@ -67,7 +67,7 @@ u_ini = initial_profile(initfile = '../input/observedTemp.txt', nx = nx, dx = dx
 Start = datetime.datetime.now()
 
     
-res = run_thermalmodel_test(  
+res = run_wq_model(  
     u = deepcopy(u_ini),
     startTime = startTime, 
     endTime = endTime, #( startTime + total_runtime * hydrodynamic_timestep) - 1,
