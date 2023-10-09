@@ -10,9 +10,7 @@ import seaborn as sns
 from numba import jit
 
 os.chdir("/home/robert/Projects/WQ_MCL/src")
-#os.chdir("C:/Users/ladwi/Documents/Projects/R/LakePIAB/src")
-#from oneD_HeatMixing_Functions import get_hyp()sography, provide_meteorology, initial_profile, run_thermalmodel_v1, run_hybridmodel_heating, run_hybridmodel_mixing, run_thermalmodel_v2
-from processBased_lakeModel_functions import get_hypsography, provide_meteorology, initial_profile, run_wq_model #, heating_module, diffusion_module, mixing_module, convection_module, ice_module
+from processBased_lakeModel_functions import get_hypsography, provide_meteorology, initial_profile, run_wq_model, wq_initial_profile, provide_phosphorus #, heating_module, diffusion_module, mixing_module, convection_module, ice_module
 
 
 ## lake configurations
@@ -30,20 +28,7 @@ meteo_all = provide_meteorology(meteofile = '../input/Mendota_2002.csv',
                     secchifile = None, 
                     windfactor = 1.0)
                      
-# hydrodynamic_timestep = 24 * dt
-# total_runtime =  365 *1 # 14 * 365
-# startTime = 365*10#150 * 24 * 3600
-# endTime =  (startTime + total_runtime * hydrodynamic_timestep) - 1
-
-# startingDate = meteo_all[0]['date'][startTime* hydrodynamic_timestep/dt]
-# endingDate = meteo_all[0]['date'][(startTime + total_runtime) * hydrodynamic_timestep/dt -1]
-# # endingDate = meteo_all[0]['date'][(startTime + total_runtime * hydrodynamic_timestep/dt) - 1]
-
-# #26280
-# times = pd.date_range(startingDate, endingDate, freq='H')
-
-# nTotalSteps = int(total_runtime * hydrodynamic_timestep/ dt)
-
+## time step discretization                      
 hydrodynamic_timestep = 24 * dt
 total_runtime =  (365*1.5) * hydrodynamic_timestep/dt  #365 *1 # 14 * 365
 startTime =   (120 + 365*12) * hydrodynamic_timestep/dt #150 * 24 * 3600
@@ -51,26 +36,38 @@ endTime =  (startTime + total_runtime) # * hydrodynamic_timestep/dt) - 1
 
 startingDate = meteo_all[0]['date'][startTime] #* hydrodynamic_timestep/dt]
 endingDate = meteo_all[0]['date'][(endTime-1)]#meteo_all[0]['date'][(startTime + total_runtime)]# * hydrodynamic_timestep/dt -1]
-# endingDate = meteo_all[0]['date'][(startTime + total_runtime * hydrodynamic_timestep/dt) - 1]
 
-
-#26280
 times = pd.date_range(startingDate, endingDate, freq='H')
 
-nTotalSteps = int(total_runtime) #  * hydrodynamic_timestep/ dt)
+nTotalSteps = int(total_runtime)
 
 ## here we define our initial profile
 u_ini = initial_profile(initfile = '../input/observedTemp.txt', nx = nx, dx = dx,
                      depth = hyps_all[1],
                      startDate = startingDate)
 
+wq_ini = wq_initial_profile(initfile = '../input/mendota_driver_data_v2.csv', nx = nx, dx = dx,
+                     depth = hyps_all[1], 
+                     volume = hyps_all[2][:-1],
+                     startDate = startingDate)
+
+tp_boundary = provide_phosphorus(tpfile =  '../input/Mendota_observations_tp.csv', 
+                                 startingDate = startingDate)
+
+tp_boundary = tp_boundary.dropna(subset=['tp'])
+
 Start = datetime.datetime.now()
 
     
 res = run_wq_model(  
     u = deepcopy(u_ini),
+    o2 = deepcopy(wq_ini[0]),
+    docr = deepcopy(wq_ini[1]),
+    docl = deepcopy(wq_ini[1]),
+    pocr = 1.27 * hyps_all[2][:-1],
+    pocl = 1.27 * hyps_all[2][:-1],
     startTime = startTime, 
-    endTime = endTime, #( startTime + total_runtime * hydrodynamic_timestep) - 1,
+    endTime = endTime, 
     area = hyps_all[0][:-1],
     volume = hyps_all[2][:-1],
     depth = hyps_all[1][:-1],
@@ -80,6 +77,7 @@ res = run_wq_model(
     dx = dx,
     daily_meteo = meteo_all[0],
     secview = meteo_all[1],
+    phosphorus_data = tp_boundary,
     ice = False,
     Hi = 0,
     Hs = 0,
@@ -114,6 +112,11 @@ res = run_wq_model(
     rho_snow = 250)
 
 temp=  res['temp']
+o2=  res['o2']
+docr=  res['docr']
+docl =  res['docl']
+pocr=  res['pocr']
+pocl=  res['pocl']
 diff =  res['diff']
 avgtemp = res['average'].values
 temp_initial =  res['temp_initial']
@@ -184,13 +187,29 @@ plt.subplots(figsize=(140,80))
 sns.heatmap(diff, cmap=plt.cm.get_cmap('Spectral_r'), xticklabels=1000, yticklabels=2)
 plt.show()
 
+# heatmap of oxygen  
+plt.subplots(figsize=(140,80))
+sns.heatmap(o2, cmap=plt.cm.get_cmap('Spectral_r'), xticklabels=1000, yticklabels=2)
+plt.show()
+
+# heatmap of docr  
+plt.subplots(figsize=(140,80))
+sns.heatmap(docr, cmap=plt.cm.get_cmap('Spectral_r'), xticklabels=1000, yticklabels=2)
+plt.show()
+
+# heatmap of docl 
+plt.subplots(figsize=(140,80))
+sns.heatmap(docl, cmap=plt.cm.get_cmap('Spectral_r'), xticklabels=1000, yticklabels=2)
+plt.show()
+
+
+
 time_step = 210 * 24 
 depth_plot = hyps_all[1][:-1]
 fig=plt.figure()
 plt.plot(temp_initial[:,time_step], depth_plot, color="black")
 plt.plot(temp_heat[:,time_step], depth_plot,color="red")
 plt.plot(temp_diff[:,time_step], depth_plot,color="yellow")
-# plt.plot(temp_mix[:,time_step], hyps_all[1],color="orange")
 plt.plot(temp_conv[:,time_step], depth_plot,color="green")
 plt.plot(temp_ice[:,time_step], depth_plot,color="blue")
 plt.gca().invert_yaxis()

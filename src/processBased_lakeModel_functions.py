@@ -341,6 +341,23 @@ def provide_meteorology(meteofile, secchifile, windfactor):
     
     return([daily_meteo, secview])
   
+    
+def provide_phosphorus(tpfile, startingDate):
+    phos = pd.read_csv(tpfile)
+
+    daily_tp = phos
+    daily_tp['date'] = pd.to_datetime(daily_tp['datetime'])
+    
+    daily_tp['ditt'] = abs(daily_tp['date'] - startingDate)
+    daily_tp = daily_tp.loc[daily_tp['date'] >= startingDate]
+    if startingDate < daily_tp['date'].min():
+        daily_tp.loc[-1] = [startingDate, 'epi', daily_tp['tp'].iloc[0], startingDate, daily_tp['ditt'].iloc[0]]  # adding a row
+        daily_tp.index = daily_tp.index + 1  # shifting index
+        daily_tp.sort_index(inplace=True) 
+    daily_tp['dt'] = (daily_tp['date'] - daily_tp['date'][0]).astype('timedelta64[s]') + 1
+
+    return(daily_tp)
+
 def initial_profile(initfile, nx, dx, depth, startDate):
   #meteo = processed_meteo
   #startDate = meteo['date'].min()
@@ -357,6 +374,41 @@ def initial_profile(initfile, nx, dx, depth, startDate):
   out_depths = np.linspace(0, nx*dx, nx) # these aren't actually at the 0, 1, 2, ... values, actually increment by 1.0412; make sure okay
   u = profile_fun(out_depths)
   
+  # TODO implement warning about profile vs. met start date
+  
+  return(u)
+
+def wq_initial_profile(initfile, nx, dx, depth, volume, startDate):
+  #meteo = processed_meteo
+  #startDate = meteo['date'].min()
+  obs = pd.read_csv(initfile)
+  obs['datetime'] = pd.to_datetime(obs['datetime'])
+  
+  do_obs = obs.loc[obs['variable'] == 'do']
+  do_obs['ditt'] = abs(do_obs['datetime'] - startDate)
+  init_df = do_obs.loc[do_obs['ditt'] == do_obs['ditt'].min()]
+  if max(depth) > init_df.depth.max():
+    lastRow = init_df.loc[init_df.depth == init_df.depth.max()]
+    init_df = pd.concat([init_df, lastRow], ignore_index=True)
+    init_df.loc[init_df.index[-1], 'depth'] = max(depth)
+    
+  profile_fun = interp1d(init_df.depth.values, init_df.observation.values)
+  out_depths = np.linspace(0, nx*dx, nx) # these aren't actually at the 0, 1, 2, ... values, actually increment by 1.0412; make sure okay
+  do = profile_fun(out_depths)
+  
+  doc_obs = obs.loc[obs['variable'] == 'doc']
+  doc_obs['ditt'] = abs(doc_obs['datetime'] - startDate)
+  init_df = doc_obs.loc[doc_obs['ditt'] == doc_obs['ditt'].min()]
+  if max(depth) > init_df.depth.max():
+    lastRow = init_df.loc[init_df.depth == init_df.depth.max()]
+    init_df = pd.concat([init_df, lastRow], ignore_index=True)
+    init_df.loc[init_df.index[-1], 'depth'] = max(depth)
+    
+  profile_fun = interp1d(init_df.depth.values, init_df.observation.values)
+  out_depths = np.linspace(0, nx*dx, nx) # these aren't actually at the 0, 1, 2, ... values, actually increment by 1.0412; make sure okay
+  doc = profile_fun(out_depths)
+  
+  u = np.vstack((do * volume, doc * volume))
   # TODO implement warning about profile vs. met start date
   
   return(u)
@@ -1234,10 +1286,316 @@ def ice_module(
     
     return dat
 
+def do_sat_calc(temp, baro, altitude = 0, salinity = 0):
+    mgL_mlL = 1.42905
+    
+    mmHg_mb = 0.750061683 # conversion from mm Hg to millibars
+    if baro is None:
+        mmHg_inHg = 25.3970886 # conversion from inches Hg to mm Hg
+        standard_pressure_sea_level = 29.92126 # Pb, inches Hg
+        standard_temperature_sea_level = 15 + 273.15 # Tb, 15 C = 288.15 K
+        gravitational_acceleration = 9.80665 # g0, m/s^2
+        air_molar_mass = 0.0289644 # M, molar mass of Earth's air (kg/mol)
+        universal_gas_constant = 8.31447 #8.31432 # R*, N*m/(mol*K)
+        
+        # estimate pressure by the barometric formula
+        baro = (1/mmHg_mb) * mmHg_inHg * standard_pressure_sea_level * exp((-gravitational_acceleration * air_molar_mass * altitude) / (universal_gas_constant * standard_temperature_sea_level))
+    
+    u = 10 ** (8.10765 - 1750.286 / (235 + temp)) # u is vapor pressure of water; water temp is used as an approximation for water & air temp at the air-water boundary
+    press_corr = (baro*mmHg_mb - u) / (760 - u) # pressure correction is ratio of current to standard pressure after correcting for vapor pressure of water. 0.750061683 mmHg/mb
+    
+    ts = log((298.15 - temp)/(273.15 + temp))
+    o2_sat = 2.00907 + 3.22014*ts + 4.05010*ts**2 + 4.94457*ts**3 + -2.56847e-1*ts**4 + 3.88767*ts**5 - salinity*(6.24523e-3 + 7.37614e-3*ts + 1.03410e-2*ts**2 + 8.17083e-3*ts**3) - 4.88682e-7*salinity**2
+    return exp(o2_sat) * mgL_mlL * press_corr
 
+def boundary_module(
+        un,
+        o2n,
+        docln,
+        docrn,
+        pocln,
+        pocrn,
+        area,
+        volume,
+        depth,
+        nx,
+        dt,
+        dx,
+        ice,
+        kd_ice,
+        Tair,
+        CC,
+        ea,
+        Jsw,
+        Jlw,
+        Uw,
+        Pa,
+        RH,
+        kd_light,
+        TP,
+        Hi = 0,
+        kd_snow = 0.9,
+        rho_fw = 1000,
+        rho_snow = 910,
+        Hs = 0,
+        sigma = 5.67e-8,
+        albedo = 0.1,
+        eps = 0.97,
+        emissivity = 0.97,
+        p2 = 1,
+        Cd = 0.0013,
+        sw_factor = 1.0,
+        at_factor = 1.0,
+        turb_factor = 1.0,
+        wind_factor = 1.0,
+        p_max = 1.0/86400,
+        IP = 0.1,
+        delta= 1.08,
+        conversion_constant = 0.1,
+        sed_sink = -1.0 / 86400,
+        k_half = 0.5):
+    
+    if ice and Tair <= 0:
+      albedo = 0.3
+      IceSnowAttCoeff = exp(-kd_ice * Hi) * exp(-kd_snow * (rho_fw/rho_snow)* Hs)
+    elif (ice and Tair >= 0):
+      albedo = 0.3
+      IceSnowAttCoeff = exp(-kd_ice * Hi) * exp(-kd_snow * (rho_fw/rho_snow)* Hs)
+    elif not ice:
+      albedo = 0.1
+      IceSnowAttCoeff = 1
+    
+    ## (1) HEAT ADDITION
+    # surface heat flux
+    start_time = datetime.datetime.now()
+    
+    Tair = Tair * at_factor
+    Jsw = Jsw * sw_factor
+    Uw = Uw * wind_factor
+    
+    u = un
+    o2 = o2n
+    docr = docrn
+    docl = docln
+    pocr = pocrn
+    pocl = pocln
+
+    # light attenuation
+    
+    if ice:
+        H =  IceSnowAttCoeff * (Jsw )  * np.exp(-(kd_light) * depth)
+    else:
+        H =  (1- albedo) * (Jsw )  * np.exp(-(kd_light ) * depth)
+    
+    npp = p_max * (1 - np.exp(-IP * H/p_max)) * TP * conversion_constant * delta**(u - 20) * volume
+    
+    o2 = o2n + dt * npp * 32/12
+    docr = docrn + dt * npp
+    docl = docln + dt * npp
+    pocr = pocrn + dt * npp
+    pocl = pocln + dt * npp
+    
+
+    o2[0] = (o2[0] + 
+        (1 * (o2[0]/volume[0] - do_sat_calc(u[0], 982.2)) * area[0]/volume[0] ) * dt)
+    
+    o2[(nx-1)] = o2[(nx-1)] + (delta**(u[(nx-1)] - 20) * sed_sink * area[nx-1] * o2[nx-1]/volume[nx-1]/(k_half +  o2[nx-1]/volume[nx-1])) * dt
+
+
+    end_time = datetime.datetime.now()
+    print("wq boundary flux: " + str(end_time - start_time))
+    
+    dat = {'o2': o2,
+           'docr': docr,
+           'docl': docl,
+           'pocr': pocr,
+           'pocl':pocl}
+
+    
+    return dat
+
+def prodcons_module(
+        un,
+        o2n,
+        docln,
+        docrn,
+        pocln,
+        pocrn,
+        area,
+        volume,
+        depth,
+        nx,
+        dt,
+        dx,
+        delta= 1.08,
+        k_half = 0.5,
+        resp_docr = -0.001,
+        resp_docl = -0.01,
+        resp_poc = -0.1): 
+
+    
+    ## (1) HEAT ADDITION
+    # surface heat flux
+    start_time = datetime.datetime.now()
+    
+
+    
+    u = un
+    o2 = o2n
+    docr = docrn
+    docl = docln
+    pocr = pocrn
+    pocl = pocln
+
+    # light attenuation
+    
+    consumption =  delta**(u-20) * o2/volume/(k_half +  o2/volume)
+    o2 = o2n + dt * consumption * (docrn + docln + pocrn + pocln) * (resp_docr + resp_docl + 2* resp_poc)
+    docr = docrn + dt * consumption * (docrn * resp_docr)
+    docl = docln + dt * consumption * (docln * resp_docl)
+    pocr = pocrn + dt * consumption * (pocrn * resp_poc)
+    pocl = pocln + dt * consumption * (pocln * resp_poc)
+    
+    end_time = datetime.datetime.now()
+    print("wq production and consumption: " + str(end_time - start_time))
+    
+    dat = {'o2': o2,
+           'docr': docr,
+           'docl': docl,
+           'pocr': pocr,
+           'pocl':pocl}
+
+    
+    return dat
+
+def transport_module(
+        un,
+        o2n,
+        docrn,
+        docln,
+        pocrn,
+        pocln,
+        kzn,
+        Uw,
+        depth,
+        area,
+        volume, 
+        dx,
+        dt,
+        nx,
+        g = 9.81,
+        ice = 0,
+        Cd = 0.013,
+        diffusion_method = 'hondzoStefan',
+        scheme = 'implicit',
+        settling_rate = 0.3):
+    
+    u = un
+    dens_u_n2 = calc_dens(un)
+    
+    kz = kzn
+    
+    o2 = o2n / volume
+    docr = docrn / volume 
+    docl = docln / volume
+    pocr = pocrn
+    pocl = pocln
+    
+
+    start_time = datetime.datetime.now()
+    if scheme == 'implicit':
+
+      
+        # IMPLEMENTATION OF CRANK-NICHOLSON SCHEME
+
+        j = len(un)
+        y = np.zeros((len(un), len(un)))
+
+        alpha = (area * kzn * dt) / (2 * dx**2)
+        
+        az = - alpha # subdiagonal
+        bz = (area + 2 * alpha) # diagonal
+        cz = - alpha # superdiagonal
+        
+        bz[0] = 1
+        bz[len(bz)-1] = 1
+        cz[0] = 0
+        
+        az =  np.delete(az,0)
+        cz =  np.delete(cz,len(cz)-1)
+        
+        # tridiagonal matrix
+        for k in range(j-1):
+            y[k][k] = bz[k]
+            y[k][k+1] = cz[k]
+            y[k+1][k] = az[k]
+        
+
+        y[j-1, j-2] = 0
+        y[j-1, j-1] = 1
+        
+        mn = un * 0.0    
+        mn[0] = un[0]
+        mn[-1] = un[-1]
+        
+        for k in range(1,j-1):
+            mn[k] = alpha[k] * un[k-1] + (area[k] - 2 * alpha[k]) * un[k] + alpha[k] * un[k+1]
+
+    # DERIVED TEMPERATURE OUTPUT FOR NEXT MODULE
+        u = np.linalg.solve(y, mn)
+
+
+        mn = o2n * 0.0    
+        mn[0] = o2n[0]
+        mn[-1] = o2n[-1]
+        
+        for k in range(1,j-1):
+            mn[k] = alpha[k] * o2n[k-1] + (area[k] - 2 * alpha[k]) * o2n[k] + alpha[k] * o2n[k+1]
+        o2 = np.linalg.solve(y, mn)* volume
+        
+        mn = docrn * 0.0    
+        mn[0] = docrn[0]
+        mn[-1] = docrn[-1]
+        
+        for k in range(1,j-1):
+            mn[k] = alpha[k] * docrn[k-1] + (area[k] - 2 * alpha[k]) * docrn[k] + alpha[k] * docrn[k+1]
+        docr = np.linalg.solve(y, mn) * volume
+        
+        mn = docln * 0.0    
+        mn[0] = docln[0]
+        mn[-1] = docln[-1]
+        
+        for k in range(1,j-1):
+            mn[k] = alpha[k] * docln[k-1] + (area[k] - 2 * alpha[k]) * docln[k] + alpha[k] * docln[k+1]
+        docl = np.linalg.solve(y, mn) * volume
+        
+    sinking_loss_pocl = pocln *  settling_rate/dx
+    pocl[:-1] = pocln[:-1] - dt * sinking_loss_pocl[:-1]
+    pocl[1:] = pocl[1:] + dt * sinking_loss_pocl[:-1]
+    
+    sinking_loss_pocr = pocrn *  settling_rate/dx
+    pocr[:-1] = pocrn[:-1] - dt * sinking_loss_pocr[:-1]
+    pocr[1:] = pocr[1:] + dt * sinking_loss_pocr[:-1]
+
+
+    end_time = datetime.datetime.now()
+    print("wq transport: " + str(end_time - start_time))
+    
+    dat = {'o2': o2,
+           'docr': docr,
+           'docl': docl,
+           'pocr': pocr,
+           'pocl':pocl}
+    
+    return dat
 
 def run_wq_model(
   u, 
+  o2,
+  docr,
+  docl,
+  pocr,
+  pocl,
   startTime, 
   endTime,
   area,
@@ -1249,6 +1607,7 @@ def run_wq_model(
   dx,
   daily_meteo,
   secview,
+  phosphorus_data,
   ice=False,
   Hi=0,
   iceT=6,
@@ -1289,7 +1648,16 @@ def run_wq_model(
   Cw = 4.18E6,
   L_ice = 333500,
   kd_snow = 0.9,
-  kd_ice = 0.7):
+  kd_ice = 0.7,p_max = 1.0/86400,
+  IP = 0.1,
+  delta= 1.08,
+  conversion_constant = 0.1,
+  sed_sink = -1.0 / 86400,
+  k_half = 0.5,
+  resp_docr = -0.001,
+  resp_docl = -0.01,
+  resp_poc = -0.1,
+  settling_rate = 0.3):
     
   ## linearization of driver data, so model can have dynamic step
   Jsw_fillvals = tuple(daily_meteo.Shortwave_Radiation_Downwelling_wattPerMeterSquared.values[[0, -1]])
@@ -1313,6 +1681,8 @@ def run_wq_model(
   RH = interp1d(daily_meteo.dt.values, daily_meteo.Relative_Humidity_percent.values, kind = "linear", fill_value=RH_fillvals, bounds_error=False)
   PP_fillvals = tuple(daily_meteo.Precipitation_millimeterPerDay.values[[0,-1]])
   PP = interp1d(daily_meteo.dt.values, daily_meteo.Precipitation_millimeterPerDay.values, kind = "linear", fill_value=PP_fillvals, bounds_error=False)
+  TP_fillvals = tuple(phosphorus_data.tp.values[[0,-1]])
+  TP = interp1d(phosphorus_data.dt.values, phosphorus_data.tp.values, kind = "linear", fill_value=TP_fillvals, bounds_error=False)
 
   
   step_times = np.arange(startTime*dt, endTime*dt, dt)
@@ -1334,6 +1704,36 @@ def run_wq_model(
   n2m = np.full([nx, nCol], np.nan)
   meteo_pgdl = np.full([28, nCol], np.nan)
   
+  o2_initial = np.full([nx, nCol], np.nan)
+  o2_bc = np.full([nx, nCol], np.nan)
+  o2_pd = np.full([nx, nCol], np.nan)
+  o2_diff = np.full([nx, nCol], np.nan)
+  o2m = np.full([nx, nCol], np.nan)
+  
+  docl_initial = np.full([nx, nCol], np.nan)
+  docl_bc = np.full([nx, nCol], np.nan)
+  docl_pd = np.full([nx, nCol], np.nan)
+  docl_diff = np.full([nx, nCol], np.nan)
+  doclm = np.full([nx, nCol], np.nan)
+  
+  docr_initial = np.full([nx, nCol], np.nan)
+  docr_bc = np.full([nx, nCol], np.nan)
+  docr_pd = np.full([nx, nCol], np.nan)
+  docr_diff = np.full([nx, nCol], np.nan)
+  docrm = np.full([nx, nCol], np.nan)
+  
+  pocl_initial = np.full([nx, nCol], np.nan)
+  pocl_bc = np.full([nx, nCol], np.nan)
+  pocl_pd = np.full([nx, nCol], np.nan)
+  pocl_diff = np.full([nx, nCol], np.nan)
+  poclm = np.full([nx, nCol], np.nan)
+  
+  pocr_initial = np.full([nx, nCol], np.nan)
+  pocr_bc = np.full([nx, nCol], np.nan)
+  pocr_pd = np.full([nx, nCol], np.nan)
+  pocr_diff = np.full([nx, nCol], np.nan)
+  pocrm = np.full([nx, nCol], np.nan)
+  
   if not kd_light is None:
     def kd(n): # using this shortcut for now / testing if it works
       return kd_light
@@ -1346,10 +1746,18 @@ def run_wq_model(
     
     un = deepcopy(u)
     un_initial = un
+    
+    
+    
 
     time_ind = np.where(times == n)
     
     um_initial[:, idn] = u
+    o2_initial[:, idn] = o2
+    docr_initial[:, idn] = docr
+    docl_initial[:, idn] = docl
+    pocr_initial[:, idn] = pocr
+    pocl_initial[:, idn] = pocl
     
 
     ## (1) HEATING
@@ -1482,7 +1890,128 @@ def run_wq_model(
     
     um_mix[:, idn] = u
 
+    ## (WQ1) BOUNDARY ADDITION
+    boundary_res = boundary_module(
+        un = u,
+        o2n = o2,
+        docrn = docr,
+        docln = docl,
+        pocrn = pocr,
+        pocln = pocl,
+        area = area,
+        volume = volume,
+        depth = depth, 
+        nx = nx,
+        dt = dt,
+        dx = dx,
+        ice = ice,
+        kd_ice = kd_ice,
+        Tair = Tair(n),
+        CC = CC(n),
+        ea = ea(n),
+        Jsw = Jsw(n),
+        Jlw = Jlw(n),
+        Uw = Uw(n),
+        Pa= Pa(n),
+        RH = RH(n),
+        kd_light = kd_light,
+        TP = TP(n),
+        Hi = Hi,
+        rho_snow = rho_snow,
+        Hs = Hs,
+        at_factor = at_factor,
+        sw_factor = sw_factor,
+        turb_factor = turb_factor,
+        wind_factor = 1.0,
+        p_max = 1.0/86400,
+        IP = 0.1,
+        delta= 1.08,
+        conversion_constant = 0.1,
+        sed_sink = -1.0 / 86400,
+        k_half = 0.5)
+    
+    o2 = boundary_res['o2']
+    docr = boundary_res['docr']
+    docl = boundary_res['docl']
+    pocr = boundary_res['pocr']
+    pocl = boundary_res['pocl']
 
+    o2_bc[:, idn] = o2
+    docr_bc[:, idn] = docr
+    docl_bc[:, idn] = docl
+    pocr_bc[:, idn] = pocr
+    pocl_bc[:, idn] = pocl
+    
+    ## (WQ2) PRODUCTION CONSUMPTION
+    prodcons_res = prodcons_module(
+        un = u,
+        o2n = o2,
+        docrn = docr,
+        docln = docl,
+        pocrn = pocr,
+        pocln = pocl,
+        area = area,
+        volume = volume,
+        depth = depth, 
+        nx = nx,
+        dt = dt,
+        dx = dx,
+        delta= 1.08,
+        k_half = 0.5,
+        resp_docr = -0.001,
+        resp_docl = -0.01,
+        resp_poc = -0.1)
+    
+    o2 = prodcons_res['o2']
+    docr = prodcons_res['docr']
+    docl = prodcons_res['docl']
+    pocr = prodcons_res['pocr']
+    pocl = prodcons_res['pocl']
+
+    o2_pd[:, idn] = o2
+    docr_pd[:, idn] = docr
+    docl_pd[:, idn] = docl
+    pocr_pd[:, idn] = pocr
+    pocl_pd[:, idn] = pocl
+    
+    ## (WQ3) TRANSPORT
+    transport_res = transport_module(
+        un = u,
+        o2n = o2,
+        docrn = docr,
+        docln = docl,
+        pocrn = pocr,
+        pocln = pocl,
+        kzn = kz,
+        Uw = Uw(n),
+        depth= depth,
+        dx = dx,
+        area = area,
+        volume = volume,
+        dt = dt,
+        nx = nx,
+        ice = ice, 
+        diffusion_method = diffusion_method,
+        scheme = scheme,
+        settling_rate = 0.3)
+    
+    o2 = transport_res['o2']
+    docr = transport_res['docr']
+    docl = transport_res['docl']
+    pocr = transport_res['pocr']
+    pocl = transport_res['pocl']
+
+    o2_diff[:, idn] = o2
+    docr_diff[:, idn] = docr
+    docl_diff[:, idn] = docl
+    pocr_diff[:, idn] = pocr
+    pocl_diff[:, idn] = pocl
+    
+    o2m[:, idn] = o2
+    docrm[:, idn] = docr
+    doclm[:, idn] = docl
+    pocrm[:, idn] = pocr
+    poclm[:, idn] = pocl
     
     icethickness_prior = Hi
     snowthickness_prior = Hs
@@ -1581,6 +2110,11 @@ def run_wq_model(
                'temp_ice' : um_ice,
                'meteo_input' : meteo_pgdl,
                'buoyancy' : n2m,
-               'density_snow' : rho_snow}
+               'density_snow' : rho_snow,
+               'o2': o2m,
+               'docr': docrm,
+               'docl': doclm,
+               'pocr': pocrm,
+               'pocl': poclm}
   
   return(dat)
