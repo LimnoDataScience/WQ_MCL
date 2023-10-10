@@ -110,15 +110,16 @@ res = run_wq_model(
     Ice_min = 0.1,
     pgdl_mode = 'on',
     rho_snow = 250,
+    p_max = 1.0/86400,
     IP = 0.1,
     delta= 1.08,
-    conversion_constant = 0.1,
+    conversion_constant = 1e-10,#0.1
     sed_sink = -1.0 / 86400,
     k_half = 0.5,
-    resp_docr = -0.001,
-    resp_docl = -0.01,
-    resp_poc = -0.1,
-    settling_rate = 0.0)
+    resp_docr = 0.001,
+    resp_docl = 0.01,
+    resp_poc = 0.1,
+    settling_rate = 0.3/86400)
 
 temp=  res['temp']
 o2=  res['o2']
@@ -140,94 +141,11 @@ icethickness= res['icethickness']
 snowthickness= res['snowthickness']
 snowicethickness= res['snowicethickness']
 
-heat_flux_total = meteo[1,] + meteo[2,] + meteo[3,] + meteo[4,]
-plt.plot(meteo[1,], color = 'blue') # longwave
-plt.plot(meteo[2,], color = 'red') # latent
-plt.plot(meteo[3,], color = 'orange') # sensible
-plt.plot(meteo[4,], color = 'green') # shortwave
-plt.show()
-
-plt.plot(heat_flux_total)
-
-# convert averages from array to data frame
-avgtemp_df = pd.DataFrame(avgtemp, columns=["time", "thermoclineDep", "epi", "hypo", "tot", "stratFlag"])
-avgtemp_df.insert(2, "icethickness", icethickness[0,], True)
-avgtemp_df.insert(2, "snowthickness", snowthickness[0,], True)
-avgtemp_df.insert(2, "snowicethickness", snowicethickness[0,], True)
 
 End = datetime.datetime.now()
 print(End - Start)
 
     
-# epi/hypo/total
-colors = ['#F8766D', '#00BA38', '#619CFF']
-avgtemp_df.plot(x='time', y=['epi', 'hypo', 'tot'], color=colors, kind='line')
-plt.show()
-
-# stratflag
-avgtemp_df.plot(x='time', y=['stratFlag'], kind='line', color="black")
-plt.show()
-
-# thermocline depth
-avgtemp_df.plot(x='time', y=['thermoclineDep'], color="black")
-plt.gca().invert_yaxis()
-plt.scatter(avgtemp_df.time, avgtemp_df.stratFlag, c=avgtemp_df.stratFlag)
-plt.show()
-
-# ice thickness
-avgtemp_df.plot(x='time', y=['icethickness'], color="black")
-plt.show()
-
-# snowice thickness
-avgtemp_df.plot(x='time', y=['snowicethickness'], color="black")
-plt.show()
-
-# snow thickness
-avgtemp_df.plot(x='time', y=['snowthickness'], color="black")
-plt.show()
-
-# heatmap of temps  
-plt.subplots(figsize=(140,80))
-sns.heatmap(temp, cmap=plt.cm.get_cmap('Spectral_r'), xticklabels=1000, yticklabels=2)
-plt.show()
-
-# heatmap of diffusivities  
-plt.subplots(figsize=(140,80))
-sns.heatmap(diff, cmap=plt.cm.get_cmap('Spectral_r'), xticklabels=1000, yticklabels=2)
-plt.show()
-
-# heatmap of oxygen  
-plt.subplots(figsize=(140,80))
-sns.heatmap(o2, cmap=plt.cm.get_cmap('Spectral_r'), xticklabels=1000, yticklabels=2)
-plt.show()
-
-# heatmap of docr  
-plt.subplots(figsize=(140,80))
-sns.heatmap(docr, cmap=plt.cm.get_cmap('Spectral_r'), xticklabels=1000, yticklabels=2)
-plt.show()
-
-# heatmap of docl 
-plt.subplots(figsize=(140,80))
-sns.heatmap(docl, cmap=plt.cm.get_cmap('Spectral_r'), xticklabels=1000, yticklabels=2)
-plt.show()
-
-
-
-time_step = 210 * 24 
-depth_plot = hyps_all[1][:-1]
-fig=plt.figure()
-plt.plot(temp_initial[:,time_step], depth_plot, color="black")
-plt.plot(temp_heat[:,time_step], depth_plot,color="red")
-plt.plot(temp_diff[:,time_step], depth_plot,color="yellow")
-plt.plot(temp_conv[:,time_step], depth_plot,color="green")
-plt.plot(temp_ice[:,time_step], depth_plot,color="blue")
-plt.gca().invert_yaxis()
-plt.show()
-
-fig=plt.figure()
-plt.plot(diff[:,time_step], depth_plot, color="black")
-plt.gca().invert_yaxis()
-plt.show()
 
 
 
@@ -260,3 +178,64 @@ yticks_ix = np.array(ax.get_yticks()).astype(int)
 depth_label = yticks_ix / 2
 ax.set_yticklabels(depth_label, rotation=0)
 plt.show()
+
+volume = hyps_all[2][:-1]
+
+fig, ax = plt.subplots(figsize=(15,5))
+sns.heatmap(np.transpose(np.transpose(o2)/volume), cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 20)
+ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens(temp), levels=[999],
+           colors=['black', 'gray'],
+           linestyles = 'dotted')
+ax.set_ylabel("Depth (m)", fontsize=15)
+ax.set_xlabel("Time", fontsize=15)    
+ax.collections[0].colorbar.set_label("Dissolved Oxygen  (g/m3)")
+xticks_ix = np.array(ax.get_xticks()).astype(int)
+time_label = times[xticks_ix]
+nelement = len(times)//N_pts
+#time_label = time_label[::nelement]
+ax.xaxis.set_major_locator(plt.MaxNLocator(N_pts))
+ax.set_xticklabels(time_label, rotation=0)
+yticks_ix = np.array(ax.get_yticks()).astype(int)
+depth_label = yticks_ix / 2
+ax.set_yticklabels(depth_label, rotation=0)
+plt.show()
+
+fig, ax = plt.subplots(figsize=(15,5))
+sns.heatmap(np.transpose(np.transpose(docl)/volume), cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 7)
+ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens(temp), levels=[999],
+           colors=['black', 'gray'],
+           linestyles = 'dotted')
+ax.set_ylabel("Depth (m)", fontsize=15)
+ax.set_xlabel("Time", fontsize=15)    
+ax.collections[0].colorbar.set_label("DOCl  (g/m3)")
+xticks_ix = np.array(ax.get_xticks()).astype(int)
+time_label = times[xticks_ix]
+nelement = len(times)//N_pts
+#time_label = time_label[::nelement]
+ax.xaxis.set_major_locator(plt.MaxNLocator(N_pts))
+ax.set_xticklabels(time_label, rotation=0)
+yticks_ix = np.array(ax.get_yticks()).astype(int)
+depth_label = yticks_ix / 2
+ax.set_yticklabels(depth_label, rotation=0)
+plt.show()
+
+
+fig, ax = plt.subplots(figsize=(15,5))
+sns.heatmap(np.transpose(np.transpose(pocr)/volume), cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 15)
+ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens(temp), levels=[999],
+           colors=['black', 'gray'],
+           linestyles = 'dotted')
+ax.set_ylabel("Depth (m)", fontsize=15)
+ax.set_xlabel("Time", fontsize=15)    
+ax.collections[0].colorbar.set_label("POCr  (g/m3)")
+xticks_ix = np.array(ax.get_xticks()).astype(int)
+time_label = times[xticks_ix]
+nelement = len(times)//N_pts
+#time_label = time_label[::nelement]
+ax.xaxis.set_major_locator(plt.MaxNLocator(N_pts))
+ax.set_xticklabels(time_label, rotation=0)
+yticks_ix = np.array(ax.get_yticks()).astype(int)
+depth_label = yticks_ix / 2
+ax.set_yticklabels(depth_label, rotation=0)
+plt.show()
+

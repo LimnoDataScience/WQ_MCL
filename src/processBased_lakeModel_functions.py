@@ -1389,19 +1389,20 @@ def boundary_module(
     
     npp = p_max * (1 - np.exp(-IP * H/p_max)) * TP * conversion_constant * delta**(u - 20) * volume
     
-    o2 = o2n + dt * npp * 32/12
+    o2 = o2n + dt * npp * 32/12 
     docr = docrn + dt * npp
     docl = docln + dt * npp
     pocr = pocrn + dt * npp
     pocl = pocln + dt * npp
     
+    #breakpoint()
 
     o2[0] = (o2[0] + 
-        (1 * (o2[0]/volume[0] - do_sat_calc(u[0], 982.2)) * area[0]/volume[0] ) * dt)
+        (1/86400 * (o2[0]/volume[0] - do_sat_calc(u[0], 982.2)) * area[0]/volume[0] ) * dt)
     
     o2[(nx-1)] = o2[(nx-1)] + (delta**(u[(nx-1)] - 20) * sed_sink * area[nx-1] * o2[nx-1]/volume[nx-1]/(k_half +  o2[nx-1]/volume[nx-1])) * dt
 
-
+    #breakpoint()
     end_time = datetime.datetime.now()
     print("wq boundary flux: " + str(end_time - start_time))
     
@@ -2003,13 +2004,13 @@ def run_wq_model(
         at_factor = at_factor,
         sw_factor = sw_factor,
         turb_factor = turb_factor,
-        wind_factor = 1.0,
-        p_max = 1.0/86400,
-        IP = 0.1,
-        delta= 1.08,
-        conversion_constant = 0.1,
-        sed_sink = -1.0 / 86400,
-        k_half = 0.5)
+        wind_factor = wind_factor,
+        p_max = p_max,
+        IP = IP,
+        delta= delta,
+        conversion_constant = conversion_constant,
+        sed_sink = sed_sink,
+        k_half = k_half)
     
     o2 = boundary_res['o2']
     docr = boundary_res['docr']
@@ -2037,11 +2038,11 @@ def run_wq_model(
         nx = nx,
         dt = dt,
         dx = dx,
-        delta= 1.08,
-        k_half = 0.5,
-        resp_docr = -0.001,
-        resp_docl = -0.01,
-        resp_poc = -0.1)
+        delta= delta,
+        k_half = k_half,
+        resp_docr = resp_docr,
+        resp_docl = resp_docl,
+        resp_poc = resp_poc)
     
     o2 = prodcons_res['o2']
     docr = prodcons_res['docr']
@@ -2074,7 +2075,7 @@ def run_wq_model(
         ice = ice, 
         diffusion_method = diffusion_method,
         scheme = scheme,
-        settling_rate = 0.3)
+        settling_rate = settling_rate)
     
     o2 = transport_res['o2']
     docr = transport_res['docr']
@@ -2087,6 +2088,11 @@ def run_wq_model(
     docl_diff[:, idn] = docl
     pocr_diff[:, idn] = pocr
     pocl_diff[:, idn] = pocl
+    
+    # print(o2_bc[:, idn]/volume)
+    # print(o2_pd[:, idn]/volume)
+    # print(o2_diff[:, idn]/volume)
+    # breakpoint()
     
     o2m[:, idn] = o2
     docrm[:, idn] = docr
