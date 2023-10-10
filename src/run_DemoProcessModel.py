@@ -30,7 +30,7 @@ meteo_all = provide_meteorology(meteofile = '../input/Mendota_2002.csv',
                      
 ## time step discretization                      
 hydrodynamic_timestep = 24 * dt
-total_runtime =  (365*1.5) * hydrodynamic_timestep/dt  #365 *1 # 14 * 365
+total_runtime =  (365) * hydrodynamic_timestep/dt  #365 *1 # 14 * 365
 startTime =   (120 + 365*12) * hydrodynamic_timestep/dt #150 * 24 * 3600
 endTime =  (startTime + total_runtime) # * hydrodynamic_timestep/dt) - 1
 
@@ -109,7 +109,16 @@ res = run_wq_model(
     KEice = 0,
     Ice_min = 0.1,
     pgdl_mode = 'on',
-    rho_snow = 250)
+    rho_snow = 250,
+    IP = 0.1,
+    delta= 1.08,
+    conversion_constant = 0.1,
+    sed_sink = -1.0 / 86400,
+    k_half = 0.5,
+    resp_docr = -0.001,
+    resp_docl = -0.01,
+    resp_poc = -0.1,
+    settling_rate = 0.0)
 
 temp=  res['temp']
 o2=  res['o2']

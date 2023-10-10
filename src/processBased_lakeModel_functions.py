@@ -1449,12 +1449,94 @@ def prodcons_module(
 
     # light attenuation
     
-    consumption =  delta**(u-20) * o2/volume/(k_half +  o2/volume)
-    o2 = o2n + dt * consumption * (docrn + docln + pocrn + pocln) * (resp_docr + resp_docl + 2* resp_poc)
-    docr = docrn + dt * consumption * (docrn * resp_docr)
-    docl = docln + dt * consumption * (docln * resp_docl)
-    pocr = pocrn + dt * consumption * (pocrn * resp_poc)
-    pocl = pocln + dt * consumption * (pocln * resp_poc)
+    
+    def fun(y, a, consumption):
+        #"Production and destruction term for a simple linear model."
+        o2n, docrn, docln, pocrn, pocln = y
+        resp_docr, resp_docln, resp_poc = a
+        consumption = consumption
+        p = [[0, 0, 0, 0, 0],
+         [0, 0, 0, 0, 0],
+         [0, 0, 0, 0, 0],
+         [0, 0, 0, 0, 0],
+         [0, 0, 0, 0, 0]]
+        d = [[0, (docrn * resp_docr * consumption), (docln * resp_docl * consumption), (pocrn * resp_poc * consumption), (pocln * resp_poc * consumption)],
+         [0, (docrn * resp_docr * consumption), 0, 0, 0],
+         [0, 0, (docln * resp_docl * consumption), 0, 0],
+         [0, 0, 0, (pocrn * resp_poc * consumption), 0],
+         [0, 0, 0, 0, (pocln * resp_poc * consumption)]]
+        return p,d
+
+    def solve_mprk(fun, y0, dt, resp, delta, u, volume, k_half):
+    
+        len_y0 = len(y0)
+        # t = np.arange(*t_span, step=dt)
+        y = np.zeros([len_y0, 1])
+        y[:, 0] = y0
+        eye = np.identity(len_y0, dtype=bool)
+        a = np.zeros_like(eye, dtype=float)
+        r = np.zeros_like(a[:, 0], dtype=float)
+        
+        consumption =  delta**(u-20) * (y[0]/volume)/(k_half +  y[0]/volume)
+        
+        ci =0
+        # Get the production and destruction term:
+        p0, d0 = fun(y[:, ci],  resp, consumption)
+        p0 = np.asarray(p0)
+        d0 = np.asarray(d0)
+
+        # Calculate diagonal:
+        a[eye] = dt * d0.sum(1) / y[:, ci] + 1
+
+        # Calculate non-diagonal:
+        c_rep = np.broadcast_to(y[:, ci], (len_y0, len_y0))
+        a[~eye] = -dt * p0[~eye] / c_rep[~eye]
+
+        # Something:
+        r[:] = y[:, ci] + dt*p0[eye]
+
+        # Solve system of equation:
+        c0 = np.linalg.solve(a, r)
+
+        # Run the algorithm a second time:
+        # Get the production and destruction term:
+        p, d = fun(c0,  resp, consumption)
+        p = np.asarray(p)
+        d = np.asarray(d)
+
+        # Calculate the mean value of the terms:
+        p = 0.5 * (p0 + p)
+        d = 0.5 * (d0 + d)
+
+        # Calculate diagonal:
+        a[eye] = dt * d.sum(1) / c0 + 1
+
+        # Calculate non-diagonal:
+        c_rep = np.broadcast_to(c0, (len_y0, len_y0))
+        a[~eye] = -dt * p[~eye] / c_rep[~eye]
+
+        # Something:
+        r[:] = y[:, ci] + dt*p[eye]
+
+        # Solve system of equation:
+        y = np.linalg.solve(a, r)
+    
+        return y
+
+
+    
+    
+    for dep in range(0, nx-1):
+        o2[dep], docr[dep], docl[dep], pocr[dep], pocl[dep] == solve_mprk(fun, y0 =  [o2n[dep], docrn[dep], docln[dep], pocrn[dep], pocln[dep]], dt = dt, 
+               resp = [resp_docr, resp_docl, resp_poc], delta = delta, u = u[dep],
+               volume = volume[dep], k_half = k_half)
+    
+    
+    # o2 = o2n + dt * consumption * (docrn + docln + pocrn + pocln) * (resp_docr + resp_docl + 2* resp_poc)
+    # docr = docrn + dt * consumption * (docrn * resp_docr)
+    # docl = docln + dt * consumption * (docln * resp_docl)
+    # pocr = pocrn + dt * consumption * (pocrn * resp_poc)
+    # pocl = pocln + dt * consumption * (pocln * resp_poc)
     
     end_time = datetime.datetime.now()
     print("wq production and consumption: " + str(end_time - start_time))
@@ -1489,15 +1571,15 @@ def transport_module(
         diffusion_method = 'hondzoStefan',
         scheme = 'implicit',
         settling_rate = 0.3):
-    
+
     u = un
     dens_u_n2 = calc_dens(un)
     
     kz = kzn
     
-    o2 = o2n / volume
-    docr = docrn / volume 
-    docl = docln / volume
+    o2n = o2n / volume
+    docrn = docrn / volume 
+    docln = docln / volume
     pocr = pocrn
     pocl = pocln
     
@@ -1543,7 +1625,6 @@ def transport_module(
 
     # DERIVED TEMPERATURE OUTPUT FOR NEXT MODULE
         u = np.linalg.solve(y, mn)
-
 
         mn = o2n * 0.0    
         mn[0] = o2n[0]
