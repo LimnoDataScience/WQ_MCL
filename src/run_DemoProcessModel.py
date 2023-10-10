@@ -87,7 +87,7 @@ res = run_wq_model(
     diffusion_method = 'pacanowskiPhilander',#'pacanowskiPhilander',# 'hendersonSellers', 'munkAnderson' 'hondzoStefan'
     scheme ='implicit',
     km = 1.4 * 10**(-7), # 4 * 10**(-6), 
-    k0 = 1 * 10**(-2),
+    k0 = 2 * 10**(-2),
     weight_kz = 0.5,
     kd_light = 0.5, 
     denThresh = 1e-2,
@@ -95,7 +95,7 @@ res = run_wq_model(
     eps = 0.97,
     emissivity = 0.97,
     sigma = 5.67e-8,
-    sw_factor = 1.0,
+    sw_factor = 1.2,
     wind_factor = 1.0,
     at_factor = 1.0,
     turb_factor = 1.0,
@@ -113,13 +113,14 @@ res = run_wq_model(
     p_max = 1.0/86400,
     IP = 0.1,
     delta= 1.08,
-    conversion_constant = 1e-10,#0.1
+    conversion_constant = 1e-4,#0.1
     sed_sink = -1.0 / 86400,
     k_half = 0.5,
     resp_docr = 0.001,
     resp_docl = 0.01,
     resp_poc = 0.1,
-    settling_rate = 0.3/86400)
+    settling_rate = 0.3/86400,
+    piston_velocity = 0.01)
 
 temp=  res['temp']
 o2=  res['o2']
@@ -140,6 +141,7 @@ buoyancy = res['buoyancy']
 icethickness= res['icethickness']
 snowthickness= res['snowthickness']
 snowicethickness= res['snowicethickness']
+npp = res['npp']
 
 
 End = datetime.datetime.now()
@@ -228,6 +230,26 @@ ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens
 ax.set_ylabel("Depth (m)", fontsize=15)
 ax.set_xlabel("Time", fontsize=15)    
 ax.collections[0].colorbar.set_label("POCr  (g/m3)")
+xticks_ix = np.array(ax.get_xticks()).astype(int)
+time_label = times[xticks_ix]
+nelement = len(times)//N_pts
+#time_label = time_label[::nelement]
+ax.xaxis.set_major_locator(plt.MaxNLocator(N_pts))
+ax.set_xticklabels(time_label, rotation=0)
+yticks_ix = np.array(ax.get_yticks()).astype(int)
+depth_label = yticks_ix / 2
+ax.set_yticklabels(depth_label, rotation=0)
+plt.show()
+
+
+fig, ax = plt.subplots(figsize=(15,5))
+sns.heatmap(npp, cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 10)
+ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens(temp), levels=[999],
+           colors=['black', 'gray'],
+           linestyles = 'dotted')
+ax.set_ylabel("Depth (m)", fontsize=15)
+ax.set_xlabel("Time", fontsize=15)    
+ax.collections[0].colorbar.set_label("NPP  (g/s)")
 xticks_ix = np.array(ax.get_xticks()).astype(int)
 time_label = times[xticks_ix]
 nelement = len(times)//N_pts

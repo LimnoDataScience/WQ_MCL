@@ -1353,7 +1353,8 @@ def boundary_module(
         delta= 1.08,
         conversion_constant = 0.1,
         sed_sink = -1.0 / 86400,
-        k_half = 0.5):
+        k_half = 0.5,
+        piston_velocity = 1.0):
     
     if ice and Tair <= 0:
       albedo = 0.3
@@ -1398,7 +1399,7 @@ def boundary_module(
     #breakpoint()
 
     o2[0] = (o2[0] + 
-        (1/86400 * (o2[0]/volume[0] - do_sat_calc(u[0], 982.2)) * area[0]/volume[0] ) * dt)
+        (piston_velocity/86400 * (o2[0]/volume[0] - do_sat_calc(u[0], 982.2)) * area[0]/volume[0] ) * dt)
     
     o2[(nx-1)] = o2[(nx-1)] + (delta**(u[(nx-1)] - 20) * sed_sink * area[nx-1] * o2[nx-1]/volume[nx-1]/(k_half +  o2[nx-1]/volume[nx-1])) * dt
 
@@ -1410,7 +1411,8 @@ def boundary_module(
            'docr': docr,
            'docl': docl,
            'pocr': pocr,
-           'pocl':pocl}
+           'pocl':pocl,
+           'npp': npp}
 
     
     return dat
@@ -1461,7 +1463,7 @@ def prodcons_module(
          [0, 0, 0, 0, 0],
          [0, 0, 0, 0, 0],
          [0, 0, 0, 0, 0]]
-        d = [[0, (docrn * resp_docr * consumption), (docln * resp_docl * consumption), (pocrn * resp_poc * consumption), (pocln * resp_poc * consumption)],
+        d = [[0, 32/12 * (docrn * resp_docr * consumption), 32/12 *(docln * resp_docl * consumption), 32/12 * (pocrn * resp_poc * consumption), 32/12 * (pocln * resp_poc * consumption)],
          [0, (docrn * resp_docr * consumption), 0, 0, 0],
          [0, 0, (docln * resp_docl * consumption), 0, 0],
          [0, 0, 0, (pocrn * resp_poc * consumption), 0],
@@ -1739,7 +1741,8 @@ def run_wq_model(
   resp_docr = -0.001,
   resp_docl = -0.01,
   resp_poc = -0.1,
-  settling_rate = 0.3):
+  settling_rate = 0.3,
+  piston_velocity = 1.0):
     
   ## linearization of driver data, so model can have dynamic step
   Jsw_fillvals = tuple(daily_meteo.Shortwave_Radiation_Downwelling_wattPerMeterSquared.values[[0, -1]])
@@ -1815,6 +1818,8 @@ def run_wq_model(
   pocr_pd = np.full([nx, nCol], np.nan)
   pocr_diff = np.full([nx, nCol], np.nan)
   pocrm = np.full([nx, nCol], np.nan)
+  
+  nppm = np.full([nx, nCol], np.nan)
   
   if not kd_light is None:
     def kd(n): # using this shortcut for now / testing if it works
@@ -2010,19 +2015,22 @@ def run_wq_model(
         delta= delta,
         conversion_constant = conversion_constant,
         sed_sink = sed_sink,
-        k_half = k_half)
+        k_half = k_half,
+        piston_velocity = piston_velocity)
     
     o2 = boundary_res['o2']
     docr = boundary_res['docr']
     docl = boundary_res['docl']
     pocr = boundary_res['pocr']
     pocl = boundary_res['pocl']
+    npp = boundary_res['npp']
 
     o2_bc[:, idn] = o2
     docr_bc[:, idn] = docr
     docl_bc[:, idn] = docl
     pocr_bc[:, idn] = pocr
     pocl_bc[:, idn] = pocl
+    nppm[:, idn] = npp
     
     ## (WQ2) PRODUCTION CONSUMPTION
     prodcons_res = prodcons_module(
@@ -2202,6 +2210,7 @@ def run_wq_model(
                'docr': docrm,
                'docl': doclm,
                'pocr': pocrm,
-               'pocl': poclm}
+               'pocl': poclm,
+               'npp':nppm}
   
   return(dat)
