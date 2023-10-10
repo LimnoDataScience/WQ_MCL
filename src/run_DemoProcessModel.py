@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from numba import jit
 
-os.chdir("/home/robert/Projects/WQ_MCL/src")
+#os.chdir("/home/robert/Projects/WQ_MCL/src")
+os.chdir("C:/Users/ladwi/Documents/Projects/R/WQ_MCL/src")
 from processBased_lakeModel_functions import get_hypsography, provide_meteorology, initial_profile, run_wq_model, wq_initial_profile, provide_phosphorus #, heating_module, diffusion_module, mixing_module, convection_module, ice_module
 
 
@@ -116,11 +117,11 @@ res = run_wq_model(
     conversion_constant = 1e-4,#0.1
     sed_sink = -1.0 / 86400,
     k_half = 0.5,
-    resp_docr = 0.001,
-    resp_docl = 0.01,
-    resp_poc = 0.1,
-    settling_rate = 0.3/86400,
-    piston_velocity = 0.01)
+    resp_docr = 0.001/86400,
+    resp_docl = 0.01/86400,
+    resp_poc = 0.1/86400,
+    settling_rate = 0.1/86400,
+    piston_velocity = 1.0)
 
 temp=  res['temp']
 o2=  res['o2']
@@ -183,6 +184,7 @@ plt.show()
 
 volume = hyps_all[2][:-1]
 
+
 fig, ax = plt.subplots(figsize=(15,5))
 sns.heatmap(np.transpose(np.transpose(o2)/volume), cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 20)
 ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens(temp), levels=[999],
@@ -241,15 +243,14 @@ depth_label = yticks_ix / 2
 ax.set_yticklabels(depth_label, rotation=0)
 plt.show()
 
-
 fig, ax = plt.subplots(figsize=(15,5))
-sns.heatmap(npp, cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 10)
+sns.heatmap(np.transpose(np.transpose(pocl)/volume), cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 15)
 ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens(temp), levels=[999],
            colors=['black', 'gray'],
            linestyles = 'dotted')
 ax.set_ylabel("Depth (m)", fontsize=15)
 ax.set_xlabel("Time", fontsize=15)    
-ax.collections[0].colorbar.set_label("NPP  (g/s)")
+ax.collections[0].colorbar.set_label("POCr=l  (g/m3)")
 xticks_ix = np.array(ax.get_xticks()).astype(int)
 time_label = times[xticks_ix]
 nelement = len(times)//N_pts
@@ -261,3 +262,36 @@ depth_label = yticks_ix / 2
 ax.set_yticklabels(depth_label, rotation=0)
 plt.show()
 
+
+fig, ax = plt.subplots(figsize=(15,5))
+sns.heatmap(np.transpose(np.transpose(npp)/volume) * 86400, cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 0.3e-1)
+ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens(temp), levels=[999],
+           colors=['black', 'gray'],
+           linestyles = 'dotted')
+ax.set_ylabel("Depth (m)", fontsize=15)
+ax.set_xlabel("Time", fontsize=15)    
+ax.collections[0].colorbar.set_label("NPP  (g/m3/d)")
+xticks_ix = np.array(ax.get_xticks()).astype(int)
+time_label = times[xticks_ix]
+nelement = len(times)//N_pts
+#time_label = time_label[::nelement]
+ax.xaxis.set_major_locator(plt.MaxNLocator(N_pts))
+ax.set_xticklabels(time_label, rotation=0)
+yticks_ix = np.array(ax.get_yticks()).astype(int)
+depth_label = yticks_ix / 2
+ax.set_yticklabels(depth_label, rotation=0)
+plt.show()
+
+plt.plot(npp[1,1:400]/volume[1] * 86400)
+plt.plot(o2[1,1:(24*200)]/volume[1])
+plt.plot(docl[1,1:(24*10)]/volume[1])
+plt.plot(docr[1,1:(24*10)]/volume[1])
+plt.plot(pocl[0,:]/volume[0])
+plt.plot(o2[(nx-1),:]/volume[(nx-1)])
+
+# TODO
+# air water exchange
+# sediment loss POC
+# diffusive transport
+# r and npp
+# phosphorus bc

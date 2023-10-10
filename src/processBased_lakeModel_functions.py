@@ -1391,15 +1391,15 @@ def boundary_module(
     npp = p_max * (1 - np.exp(-IP * H/p_max)) * TP * conversion_constant * delta**(u - 20) * volume
     
     o2 = o2n + dt * npp * 32/12 
-    docr = docrn + dt * npp
-    docl = docln + dt * npp
-    pocr = pocrn + dt * npp
-    pocl = pocln + dt * npp
+    docr = docrn + dt * npp * (0.0)
+    docl = docln + dt * npp * (0.2)
+    pocr = pocrn + dt * npp * (0.0)
+    pocl = pocln + dt * npp * (0.8)
     
     #breakpoint()
 
-    o2[0] = (o2[0] + 
-        (piston_velocity/86400 * (o2[0]/volume[0] - do_sat_calc(u[0], 982.2)) * area[0]/volume[0] ) * dt)
+    o2[0] = (o2[0] +  # m/s g/m3 m2
+        (piston_velocity/86400 * (do_sat_calc(u[0], 982.2) - o2[0]/volume[0]) * area[0] ) * dt)
     
     o2[(nx-1)] = o2[(nx-1)] + (delta**(u[(nx-1)] - 20) * sed_sink * area[nx-1] * o2[nx-1]/volume[nx-1]/(k_half +  o2[nx-1]/volume[nx-1])) * dt
 
