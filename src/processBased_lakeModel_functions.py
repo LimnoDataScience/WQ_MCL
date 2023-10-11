@@ -301,6 +301,8 @@ def provide_meteorology(meteofile, secchifile, windfactor):
                                                 swr = daily_meteo['Shortwave_Radiation_Downwelling_wattPerMeterSquared'],
                                                 lat = 43, lon = -89.41,
                                                 elev = 258)
+
+    
     daily_meteo['dt'] = (daily_meteo['date'] - daily_meteo['date'][0]).astype('timedelta64[s]') + 1
     daily_meteo['ea'] = (daily_meteo['Relative_Humidity_percent'] * 
       (4.596 * np.exp((17.27*(daily_meteo['Air_Temperature_celsius'])) /
@@ -1397,7 +1399,9 @@ def boundary_module(
     pocl = pocln + dt * npp * (0.8)
     
     #breakpoint()
-
+    if ice:
+        piston_velocity = 1e-5
+    
     o2[0] = (o2[0] +  # m/s g/m3 m2
         (piston_velocity/86400 * (do_sat_calc(u[0], 982.2) - o2[0]/volume[0]) * area[0] ) * dt)
     
@@ -1573,7 +1577,8 @@ def transport_module(
         Cd = 0.013,
         diffusion_method = 'hondzoStefan',
         scheme = 'implicit',
-        settling_rate = 0.3):
+        settling_rate = 0.3,
+        sediment_rate = 0.03):
 
     u = un
     dens_u_n2 = calc_dens(un)
@@ -1656,10 +1661,12 @@ def transport_module(
     sinking_loss_pocl = pocln *  settling_rate/dx
     pocl[:-1] = pocln[:-1] - dt * sinking_loss_pocl[:-1]
     pocl[1:] = pocl[1:] + dt * sinking_loss_pocl[:-1]
+    pocl[(nx-1)] = pocl[(nx-1)] + dt * pocl[(nx-1)] * sediment_rate/dx
     
     sinking_loss_pocr = pocrn *  settling_rate/dx
     pocr[:-1] = pocrn[:-1] - dt * sinking_loss_pocr[:-1]
     pocr[1:] = pocr[1:] + dt * sinking_loss_pocr[:-1]
+    pocr[(nx-1)] = pocr[(nx-1)] + dt * pocr[(nx-1)] * sediment_rate/dx
 
 
     end_time = datetime.datetime.now()
@@ -1742,6 +1749,7 @@ def run_wq_model(
   resp_docl = -0.01,
   resp_poc = -0.1,
   settling_rate = 0.3,
+  sediment_rate = 0.01,
   piston_velocity = 1.0):
     
   ## linearization of driver data, so model can have dynamic step
@@ -2083,7 +2091,8 @@ def run_wq_model(
         ice = ice, 
         diffusion_method = diffusion_method,
         scheme = scheme,
-        settling_rate = settling_rate)
+        settling_rate = settling_rate,
+        sediment_rate = sediment_rate)
     
     o2 = transport_res['o2']
     docr = transport_res['docr']

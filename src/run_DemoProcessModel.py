@@ -90,7 +90,7 @@ res = run_wq_model(
     km = 1.4 * 10**(-7), # 4 * 10**(-6), 
     k0 = 2 * 10**(-2),
     weight_kz = 0.5,
-    kd_light = 0.5, 
+    kd_light = 0.6, 
     denThresh = 1e-2,
     albedo = 0.01,
     eps = 0.97,
@@ -98,7 +98,7 @@ res = run_wq_model(
     sigma = 5.67e-8,
     sw_factor = 1.2,
     wind_factor = 1.0,
-    at_factor = 1.0,
+    at_factor = 1.2,
     turb_factor = 1.0,
     p2 = 1,
     B = 0.61,
@@ -114,14 +114,15 @@ res = run_wq_model(
     p_max = 1.0/86400,
     IP = 0.1,
     delta= 1.08,
-    conversion_constant = 1e-4,#0.1
-    sed_sink = -1.0 / 86400,
+    conversion_constant = 9e-4,#0.1
+    sed_sink = -0.1 / 86400,
     k_half = 0.5,
-    resp_docr = 0.001/86400,
-    resp_docl = 0.01/86400,
-    resp_poc = 0.1/86400,
+    resp_docr = 0.001/86400, # 0.001
+    resp_docl = 0.01/86400, # 0.01
+    resp_poc = 0.1/86400, # 0.1
     settling_rate = 0.1/86400,
-    piston_velocity = 1.0)
+    sediment_rate = 0.05/86400,
+    piston_velocity = 0.5)
 
 temp=  res['temp']
 o2=  res['o2']
@@ -225,6 +226,26 @@ plt.show()
 
 
 fig, ax = plt.subplots(figsize=(15,5))
+sns.heatmap(np.transpose(np.transpose(docr)/volume), cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 7)
+ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens(temp), levels=[999],
+           colors=['black', 'gray'],
+           linestyles = 'dotted')
+ax.set_ylabel("Depth (m)", fontsize=15)
+ax.set_xlabel("Time", fontsize=15)    
+ax.collections[0].colorbar.set_label("DOCr  (g/m3)")
+xticks_ix = np.array(ax.get_xticks()).astype(int)
+time_label = times[xticks_ix]
+nelement = len(times)//N_pts
+#time_label = time_label[::nelement]
+ax.xaxis.set_major_locator(plt.MaxNLocator(N_pts))
+ax.set_xticklabels(time_label, rotation=0)
+yticks_ix = np.array(ax.get_yticks()).astype(int)
+depth_label = yticks_ix / 2
+ax.set_yticklabels(depth_label, rotation=0)
+plt.show()
+
+
+fig, ax = plt.subplots(figsize=(15,5))
 sns.heatmap(np.transpose(np.transpose(pocr)/volume), cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 15)
 ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens(temp), levels=[999],
            colors=['black', 'gray'],
@@ -264,7 +285,7 @@ plt.show()
 
 
 fig, ax = plt.subplots(figsize=(15,5))
-sns.heatmap(np.transpose(np.transpose(npp)/volume) * 86400, cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 0.3e-1)
+sns.heatmap(np.transpose(np.transpose(npp)/volume) * 86400, cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = .3)
 ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens(temp), levels=[999],
            colors=['black', 'gray'],
            linestyles = 'dotted')
@@ -283,10 +304,11 @@ ax.set_yticklabels(depth_label, rotation=0)
 plt.show()
 
 plt.plot(npp[1,1:400]/volume[1] * 86400)
-plt.plot(o2[1,1:(24*200)]/volume[1])
+plt.plot(o2[1,:]/volume[1])
 plt.plot(docl[1,1:(24*10)]/volume[1])
 plt.plot(docr[1,1:(24*10)]/volume[1])
 plt.plot(pocl[0,:]/volume[0])
+plt.plot(pocr[0,:]/volume[0])
 plt.plot(o2[(nx-1),:]/volume[(nx-1)])
 
 # TODO
