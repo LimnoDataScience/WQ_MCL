@@ -1365,7 +1365,8 @@ def boundary_module(
         conversion_constant = 0.1,
         sed_sink = -1.0 / 86400,
         k_half = 0.5,
-        piston_velocity = 1.0):
+        piston_velocity = 1.0,
+        sw_to_par = 2.114):
     
     if ice and Tair <= 0:
       albedo = 0.3
@@ -1399,8 +1400,17 @@ def boundary_module(
     else:
         H =  (1- albedo) * (Jsw )  * np.exp(-(kd_light ) * depth)
     
-    npp = p_max * (1 - np.exp(-IP * H/p_max)) * TP * conversion_constant * delta**(u - 20) * volume
     
+    if ice:
+        piston_velocity = 1e-5 / 86400
+        IP_m = IP / 10
+    else:
+        IP_m = IP
+        
+    #npp = p_max * (1 - np.exp(-IP * H/p_max)) * TP * conversion_constant * delta**(u - 20) * volume
+    npp = H * sw_to_par * IP_m * TP  * delta**(u - 20) * volume
+    
+    #breakpoint()
     o2 = o2n + dt * npp * 32/12 
     docr = docrn + dt * npp * (0.0)
     docl = docln + dt * npp * (0.2)
@@ -1408,11 +1418,10 @@ def boundary_module(
     pocl = pocln + dt * npp * (0.8)
     
     #breakpoint()
-    if ice:
-        piston_velocity = 1e-5
+    
     
     o2[0] = (o2[0] +  # m/s g/m3 m2
-        (piston_velocity/86400 * (do_sat_calc(u[0], 982.2) - o2[0]/volume[0]) * area[0] ) * dt)
+        (piston_velocity * (do_sat_calc(u[0], 982.2, altitude = 258) - o2[0]/volume[0]) * area[0] ) * dt)
     
     o2[(nx-1)] = o2[(nx-1)] + (delta**(u[(nx-1)] - 20) * sed_sink * area[nx-1] * o2[nx-1]/volume[nx-1]/(k_half +  o2[nx-1]/volume[nx-1])) * dt
 
@@ -1869,8 +1878,8 @@ def run_wq_model(
     un_initial = un
     #breakpoint()
     
-    # depth_limit = mean_depth
-    depth_limit = 1
+    depth_limit = mean_depth
+    # depth_limit = 1
     
     sum_doc = (docr[depth < depth_limit] + docl[depth < depth_limit] )/volume[depth < depth_limit] 
     sum_poc = (pocr[depth < depth_limit]  + pocl[depth < depth_limit] )/volume[depth < depth_limit] 

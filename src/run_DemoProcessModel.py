@@ -11,7 +11,7 @@ from numba import jit
 
 os.chdir("/home/robert/Projects/WQ_MCL/src")
 #os.chdir("C:/Users/ladwi/Documents/Projects/R/WQ_MCL/src")
-from processBased_lakeModel_functions import get_hypsography, provide_meteorology, initial_profile, run_wq_model, wq_initial_profile, provide_phosphorus #, heating_module, diffusion_module, mixing_module, convection_module, ice_module
+from processBased_lakeModel_functions import get_hypsography, provide_meteorology, initial_profile, run_wq_model, wq_initial_profile, provide_phosphorus, do_sat_calc, calc_dens #, heating_module, diffusion_module, mixing_module, convection_module, ice_module
 
 
 ## lake configurations
@@ -65,9 +65,9 @@ res = run_wq_model(
     u = deepcopy(u_ini),
     o2 = deepcopy(wq_ini[0]),
     docr = deepcopy(wq_ini[1]),
-    docl = deepcopy(wq_ini[1]),
-    pocr = 1.27 * volume,
-    pocl = 1.27 * volume,
+    docl = 1.0 * volume,
+    pocr = 0.5 * volume,
+    pocl = 0.5 * volume,
     startTime = startTime, 
     endTime = endTime, 
     area = area,
@@ -112,18 +112,18 @@ res = run_wq_model(
     Ice_min = 0.1,
     pgdl_mode = 'on',
     rho_snow = 250,
-    p_max = 1.5/86400,
-    IP = 0.1,
+    p_max = 1/86400,
+    IP = 3e-5/86400 ,#0.1,
     delta= 1.08,
-    conversion_constant = 9e-4,#0.1
+    conversion_constant = 1e-4,#0.1
     sed_sink = -0.01 / 86400,
     k_half = 0.5,
     resp_docr = 0.001/86400, # 0.001
-    resp_docl = 0.01/86400, # 0.01
-    resp_poc = 0.01/86400, # 0.1
+    resp_docl = 0.05/86400, # 0.01
+    resp_poc = 0.1/86400, # 0.1
     settling_rate = 0.3/86400,
     sediment_rate = 1/86400,
-    piston_velocity = 1.0,
+    piston_velocity = 1.0/86400,
     light_water = 0.125,
     light_doc = 0.02,
     light_poc = 0.7,
@@ -164,13 +164,7 @@ print(End - Start)
 # heatmap of temps  
 N_pts = 6
 
-## function to calculate density from temperature
 
-def calc_dens(wtemp):
-    dens = (999.842594 + (6.793952 * 1e-2 * wtemp) - (9.095290 * 1e-3 *wtemp**2) +
-      (1.001685 * 1e-4 * wtemp**3) - (1.120083 * 1e-6* wtemp**4) + 
-      (6.536336 * 1e-9 * wtemp**5))
-    return dens
 
 fig, ax = plt.subplots(figsize=(15,5))
 sns.heatmap(temp, cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 35)
@@ -352,7 +346,7 @@ plt.show()
 
 
 fig, ax = plt.subplots(figsize=(15,5))
-sns.heatmap(poc_respiration , cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 2e-1)
+sns.heatmap(poc_respiration , cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 2e-2)
 ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens(temp), levels=[999],
            colors=['black', 'gray'],
            linestyles = 'dotted')
@@ -370,15 +364,28 @@ depth_label = yticks_ix / 2
 ax.set_yticklabels(depth_label, rotation=0)
 plt.show()
 
-plt.plot(npp[1,1:400]/volume[1] * 86400)
-plt.plot(o2[1,:]/volume[1])
-plt.plot(docl[1,1:(24*10)]/volume[1])
-plt.plot(docr[1,1:(24*10)]/volume[1])
-plt.plot(pocl[0,:]/volume[0])
-plt.plot(pocr[0,:]/volume[0])
-plt.plot(o2[(nx-1),:]/volume[(nx-1)])
+# plt.plot(npp[1,1:400]/volume[1] * 86400)
+# plt.plot(o2[1,:]/volume[1])
+# plt.plot(o2[1,1:(24*100)]/volume[1])
+# plt.plot(o2[1,:]/volume[1])
+# plt.plot(docl[1,:]/volume[1])
+# plt.plot(docr[1,1:(24*10)]/volume[1])
+# plt.plot(pocl[0,:]/volume[0])
+# plt.plot(pocr[0,:]/volume[0])
+# plt.plot(npp[0,:]/volume[0]*86400)
+# plt.plot(docl_respiration[0,:]/volume[0]*86400)
+# plt.plot(o2[(nx-1),:]/volume[(nx-1)])
 
 plt.plot(times, kd[0,:])
+plt.show()
+
+do_sat = o2[0,:] * 0.0
+for r in range(0, len(temp[0,:])):
+    do_sat[r] = do_sat_calc(temp[0,r], 982.2, altitude = 258) 
+
+plt.plot(times, o2[0,:]/volume[0], color = 'blue')
+plt.plot(times, do_sat, color = 'red')
+plt.show()
 
 # TODO
 # air water exchange
@@ -386,3 +393,4 @@ plt.plot(times, kd[0,:])
 # diffusive transport
 # r and npp
 # phosphorus bc
+# ice npp
