@@ -373,7 +373,7 @@ def initial_profile(initfile, nx, dx, depth, startDate):
     init_df.loc[init_df.index[-1], 'Depth_meter'] = max(depth)
     
   profile_fun = interp1d(init_df.Depth_meter.values, init_df.Water_Temperature_celsius.values)
-  out_depths = np.linspace(0, nx*dx, nx) # these aren't actually at the 0, 1, 2, ... values, actually increment by 1.0412; make sure okay
+  out_depths = depth # these aren't actually at the 0, 1, 2, ... values, actually increment by 1.0412; make sure okay
   u = profile_fun(out_depths)
   
   # TODO implement warning about profile vs. met start date
@@ -395,7 +395,7 @@ def wq_initial_profile(initfile, nx, dx, depth, volume, startDate):
     init_df.loc[init_df.index[-1], 'depth'] = max(depth)
     
   profile_fun = interp1d(init_df.depth.values, init_df.observation.values)
-  out_depths = np.linspace(0, nx*dx, nx) # these aren't actually at the 0, 1, 2, ... values, actually increment by 1.0412; make sure okay
+  out_depths =depth# these aren't actually at the 0, 1, 2, ... values, actually increment by 1.0412; make sure okay
   do = profile_fun(out_depths)
   
   doc_obs = obs.loc[obs['variable'] == 'doc']
@@ -407,7 +407,7 @@ def wq_initial_profile(initfile, nx, dx, depth, volume, startDate):
     init_df.loc[init_df.index[-1], 'depth'] = max(depth)
     
   profile_fun = interp1d(init_df.depth.values, init_df.observation.values)
-  out_depths = np.linspace(0, nx*dx, nx) # these aren't actually at the 0, 1, 2, ... values, actually increment by 1.0412; make sure okay
+  out_depths = depth# these aren't actually at the 0, 1, 2, ... values, actually increment by 1.0412; make sure okay
   doc = profile_fun(out_depths)
   
   u = np.vstack((do * volume, doc * volume))
@@ -423,9 +423,18 @@ def get_hypsography(hypsofile, dx, nx):
   area[-1] = area[-2] - 1 # TODO: confirm this is correct
   depth = np.linspace(0, nx*dx, nx+1)
   
+  volume = area * 1000
   # volume = 0.5 * (area[:-1] + area[1:]) * np.diff(depth)
-  volume = (area[:-1] + area[1:]) * np.diff(depth)
-  volume = np.append(volume, 1000)
+  # volume = (area[:-1] + area[1:]) * np.diff(depth)
+  for d in range(0, (len(depth)-1)):
+      volume[d] = np.abs(sum(area[0:(d+1)] * dx) - sum(area[0:d] * dx))
+
+  # volume = (area[:-1] - area[1:]) * np.diff(depth)
+  # volume = np.append(volume, 1000)
+  
+  volume = volume[:-1]
+  depth = 1/2 * (depth[:-1] + depth[1:])
+  area = 1/2 * (area[:-1] + area[1:])
   
   return([area, depth, volume])
 
@@ -1708,6 +1717,7 @@ def run_wq_model(
   daily_meteo,
   secview,
   phosphorus_data,
+  mean_depth,
   ice=False,
   Hi=0,
   iceT=6,
@@ -1759,7 +1769,10 @@ def run_wq_model(
   resp_poc = -0.1,
   settling_rate = 0.3,
   sediment_rate = 0.01,
-  piston_velocity = 1.0):
+  piston_velocity = 1.0,
+  light_water = 0.125,
+  light_doc = 0.02,
+  light_poc = 0.7):
     
   ## linearization of driver data, so model can have dynamic step
   Jsw_fillvals = tuple(daily_meteo.Shortwave_Radiation_Downwelling_wattPerMeterSquared.values[[0, -1]])
@@ -1792,6 +1805,7 @@ def run_wq_model(
   um = np.full([nx, nCol], np.nan)
   kzm = np.full([nx, nCol], np.nan)
   mix_z = np.full([1,nCol], np.nan)
+  kd_lightm = np.full([1,nCol], np.nan)
   Him= np.full([1,nCol], np.nan)
   Hsm= np.full([1,nCol], np.nan)
   Hsim= np.full([1,nCol], np.nan)
@@ -1853,8 +1867,14 @@ def run_wq_model(
     
     un = deepcopy(u)
     un_initial = un
+    #breakpoint()
     
+    # depth_limit = mean_depth
+    depth_limit = 1
     
+    sum_doc = (docr[depth < depth_limit] + docl[depth < depth_limit] )/volume[depth < depth_limit] 
+    sum_poc = (pocr[depth < depth_limit]  + pocl[depth < depth_limit] )/volume[depth < depth_limit] 
+    kd_light = light_water +  light_doc * np.mean(sum_doc) + light_poc * np.mean(sum_poc)
     
 
     time_ind = np.where(times == n)
@@ -2152,6 +2172,8 @@ def run_wq_model(
     Hsm[0,idn] = Hs
     Hsim[0,idn] = Hsi
     
+    kd_lightm[0,idn] =kd_light
+    
     
     meteo_pgdl[0, idn] = heating_res['air_temp']
     meteo_pgdl[1, idn] = heating_res['longwave_flux']
@@ -2242,6 +2264,7 @@ def run_wq_model(
                'npp':nppm,
                'docr_respiration': docr_respirationm,
                'docl_respiration': docl_respirationm,
-               'poc_respiration': poc_respirationm}
+               'poc_respiration': poc_respirationm,
+               'kd_light': kd_lightm}
   
   return(dat)

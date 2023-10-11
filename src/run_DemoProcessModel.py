@@ -21,7 +21,7 @@ dt = 3600 # 24 hours times 60 min/hour times 60 seconds/min
 dx = zmax/nx # spatial step
 
 ## area and depth values of our lake 
-hyps_all = get_hypsography(hypsofile = '../input/bathymetry.csv',
+area, depth, volume = get_hypsography(hypsofile = '../input/bathymetry.csv',
                             dx = dx, nx = nx)
                             
 ## atmospheric boundary conditions
@@ -44,12 +44,12 @@ nTotalSteps = int(total_runtime)
 
 ## here we define our initial profile
 u_ini = initial_profile(initfile = '../input/observedTemp.txt', nx = nx, dx = dx,
-                     depth = hyps_all[1],
+                     depth = depth,
                      startDate = startingDate)
 
 wq_ini = wq_initial_profile(initfile = '../input/mendota_driver_data_v2.csv', nx = nx, dx = dx,
-                     depth = hyps_all[1], 
-                     volume = hyps_all[2][:-1],
+                     depth = depth, 
+                     volume = volume,
                      startDate = startingDate)
 
 tp_boundary = provide_phosphorus(tpfile =  '../input/Mendota_observations_tp.csv', 
@@ -66,13 +66,13 @@ res = run_wq_model(
     o2 = deepcopy(wq_ini[0]),
     docr = deepcopy(wq_ini[1]),
     docl = deepcopy(wq_ini[1]),
-    pocr = 1.27 * hyps_all[2][:-1],
-    pocl = 1.27 * hyps_all[2][:-1],
+    pocr = 1.27 * volume,
+    pocl = 1.27 * volume,
     startTime = startTime, 
     endTime = endTime, 
-    area = hyps_all[0][:-1],
-    volume = hyps_all[2][:-1],
-    depth = hyps_all[1][:-1],
+    area = area,
+    volume = volume,
+    depth = depth,
     zmax = zmax,
     nx = nx,
     dt = dt,
@@ -121,9 +121,13 @@ res = run_wq_model(
     resp_docr = 0.001/86400, # 0.001
     resp_docl = 0.01/86400, # 0.01
     resp_poc = 0.01/86400, # 0.1
-    settling_rate = 0.1/86400,
-    sediment_rate = 0.1/86400,
-    piston_velocity = 1.0)
+    settling_rate = 0.3/86400,
+    sediment_rate = 1/86400,
+    piston_velocity = 1.0,
+    light_water = 0.125,
+    light_doc = 0.02,
+    light_poc = 0.7,
+    mean_depth = sum(volume)/max(area))
 
 temp=  res['temp']
 o2=  res['o2']
@@ -148,13 +152,13 @@ npp = res['npp']
 docr_respiration = res['docr_respiration']
 docl_respiration = res['docl_respiration']
 poc_respiration = res['poc_respiration']
+kd = res['kd_light']
 
 
 End = datetime.datetime.now()
 print(End - Start)
 
     
-
 
 
 # heatmap of temps  
@@ -187,7 +191,7 @@ depth_label = yticks_ix / 2
 ax.set_yticklabels(depth_label, rotation=0)
 plt.show()
 
-volume = hyps_all[2][:-1]
+
 
 
 fig, ax = plt.subplots(figsize=(15,5))
@@ -373,6 +377,8 @@ plt.plot(docr[1,1:(24*10)]/volume[1])
 plt.plot(pocl[0,:]/volume[0])
 plt.plot(pocr[0,:]/volume[0])
 plt.plot(o2[(nx-1),:]/volume[(nx-1)])
+
+plt.plot(times, kd[0,:])
 
 # TODO
 # air water exchange
