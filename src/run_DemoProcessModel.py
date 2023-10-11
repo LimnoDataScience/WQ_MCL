@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from numba import jit
 
-#os.chdir("/home/robert/Projects/WQ_MCL/src")
-os.chdir("C:/Users/ladwi/Documents/Projects/R/WQ_MCL/src")
+os.chdir("/home/robert/Projects/WQ_MCL/src")
+#os.chdir("C:/Users/ladwi/Documents/Projects/R/WQ_MCL/src")
 from processBased_lakeModel_functions import get_hypsography, provide_meteorology, initial_profile, run_wq_model, wq_initial_profile, provide_phosphorus #, heating_module, diffusion_module, mixing_module, convection_module, ice_module
 
 
@@ -53,7 +53,8 @@ wq_ini = wq_initial_profile(initfile = '../input/mendota_driver_data_v2.csv', nx
                      startDate = startingDate)
 
 tp_boundary = provide_phosphorus(tpfile =  '../input/Mendota_observations_tp.csv', 
-                                 startingDate = startingDate)
+                                 startingDate = startingDate,
+                                 startTime = startTime)
 
 tp_boundary = tp_boundary.dropna(subset=['tp'])
 
@@ -111,18 +112,18 @@ res = run_wq_model(
     Ice_min = 0.1,
     pgdl_mode = 'on',
     rho_snow = 250,
-    p_max = 1.0/86400,
+    p_max = 2.5/86400,
     IP = 0.1,
     delta= 1.08,
     conversion_constant = 9e-4,#0.1
-    sed_sink = -0.1 / 86400,
+    sed_sink = -0.01 / 86400,
     k_half = 0.5,
-    resp_docr = 0.001/86400, # 0.001
-    resp_docl = 0.01/86400, # 0.01
-    resp_poc = 0.1/86400, # 0.1
+    resp_docr = 0.00001/86400, # 0.001
+    resp_docl = 0.0001/86400, # 0.01
+    resp_poc = 0.001/86400, # 0.1
     settling_rate = 0.1/86400,
-    sediment_rate = 0.05/86400,
-    piston_velocity = 0.5)
+    sediment_rate = 0.1/86400,
+    piston_velocity = 1.0)
 
 temp=  res['temp']
 o2=  res['o2']
@@ -144,6 +145,9 @@ icethickness= res['icethickness']
 snowthickness= res['snowthickness']
 snowicethickness= res['snowicethickness']
 npp = res['npp']
+docr_respiration = res['docr_respiration']
+docl_respiration = res['docl_respiration']
+poc_respiration = res['poc_respiration']
 
 
 End = datetime.datetime.now()
@@ -292,6 +296,65 @@ ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens
 ax.set_ylabel("Depth (m)", fontsize=15)
 ax.set_xlabel("Time", fontsize=15)    
 ax.collections[0].colorbar.set_label("NPP  (g/m3/d)")
+xticks_ix = np.array(ax.get_xticks()).astype(int)
+time_label = times[xticks_ix]
+nelement = len(times)//N_pts
+#time_label = time_label[::nelement]
+ax.xaxis.set_major_locator(plt.MaxNLocator(N_pts))
+ax.set_xticklabels(time_label, rotation=0)
+yticks_ix = np.array(ax.get_yticks()).astype(int)
+depth_label = yticks_ix / 2
+ax.set_yticklabels(depth_label, rotation=0)
+plt.show()
+
+
+fig, ax = plt.subplots(figsize=(15,5))
+sns.heatmap(docr_respiration , cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 2e-3)
+ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens(temp), levels=[999],
+           colors=['black', 'gray'],
+           linestyles = 'dotted')
+ax.set_ylabel("Depth (m)", fontsize=15)
+ax.set_xlabel("Time", fontsize=15)    
+ax.collections[0].colorbar.set_label("DOCr respiration  (/d)")
+xticks_ix = np.array(ax.get_xticks()).astype(int)
+time_label = times[xticks_ix]
+nelement = len(times)//N_pts
+#time_label = time_label[::nelement]
+ax.xaxis.set_major_locator(plt.MaxNLocator(N_pts))
+ax.set_xticklabels(time_label, rotation=0)
+yticks_ix = np.array(ax.get_yticks()).astype(int)
+depth_label = yticks_ix / 2
+ax.set_yticklabels(depth_label, rotation=0)
+plt.show()
+
+fig, ax = plt.subplots(figsize=(15,5))
+sns.heatmap(docl_respiration , cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 2e-2)
+ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens(temp), levels=[999],
+           colors=['black', 'gray'],
+           linestyles = 'dotted')
+ax.set_ylabel("Depth (m)", fontsize=15)
+ax.set_xlabel("Time", fontsize=15)    
+ax.collections[0].colorbar.set_label("DOCl respiration  (/d)")
+xticks_ix = np.array(ax.get_xticks()).astype(int)
+time_label = times[xticks_ix]
+nelement = len(times)//N_pts
+#time_label = time_label[::nelement]
+ax.xaxis.set_major_locator(plt.MaxNLocator(N_pts))
+ax.set_xticklabels(time_label, rotation=0)
+yticks_ix = np.array(ax.get_yticks()).astype(int)
+depth_label = yticks_ix / 2
+ax.set_yticklabels(depth_label, rotation=0)
+plt.show()
+
+
+fig, ax = plt.subplots(figsize=(15,5))
+sns.heatmap(poc_respiration , cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 2e-1)
+ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens(temp), levels=[999],
+           colors=['black', 'gray'],
+           linestyles = 'dotted')
+ax.set_ylabel("Depth (m)", fontsize=15)
+ax.set_xlabel("Time", fontsize=15)    
+ax.collections[0].colorbar.set_label("POC respiration  (/d)")
 xticks_ix = np.array(ax.get_xticks()).astype(int)
 time_label = times[xticks_ix]
 nelement = len(times)//N_pts

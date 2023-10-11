@@ -344,7 +344,7 @@ def provide_meteorology(meteofile, secchifile, windfactor):
     return([daily_meteo, secview])
   
     
-def provide_phosphorus(tpfile, startingDate):
+def provide_phosphorus(tpfile, startingDate, startTime):
     phos = pd.read_csv(tpfile)
 
     daily_tp = phos
@@ -356,7 +356,7 @@ def provide_phosphorus(tpfile, startingDate):
         daily_tp.loc[-1] = [startingDate, 'epi', daily_tp['tp'].iloc[0], startingDate, daily_tp['ditt'].iloc[0]]  # adding a row
         daily_tp.index = daily_tp.index + 1  # shifting index
         daily_tp.sort_index(inplace=True) 
-    daily_tp['dt'] = (daily_tp['date'] - daily_tp['date'][0]).astype('timedelta64[s]') + 1
+    daily_tp['dt'] = (daily_tp['date'] - daily_tp['date'][0]).astype('timedelta64[s]') + startTime 
 
     return(daily_tp)
 
@@ -1475,7 +1475,8 @@ def prodcons_module(
         return p,d
 
     def solve_mprk(fun, y0, dt, resp, delta, u, volume, k_half):
-    
+        
+        #breakpoint()
         len_y0 = len(y0)
         # t = np.arange(*t_span, step=dt)
         y = np.zeros([len_y0, 1])
@@ -1527,18 +1528,23 @@ def prodcons_module(
 
         # Solve system of equation:
         y = np.linalg.solve(a, r)
-    
-        return y
+        # breakpoint()
+        return [y, 86400 * resp[0] * consumption, 86400 * resp[1] * consumption, 86400 * resp[2] * consumption]
 
-
+    docr_respiration = o2 * 0.0
+    docl_respiration = o2 * 0.0
+    poc_respiration = o2 * 0.0
     
     
     for dep in range(0, nx-1):
-        o2[dep], docr[dep], docl[dep], pocr[dep], pocl[dep] == solve_mprk(fun, y0 =  [o2n[dep], docrn[dep], docln[dep], pocrn[dep], pocln[dep]], dt = dt, 
+        mprk_res = solve_mprk(fun, y0 =  [o2n[dep], docrn[dep], docln[dep], pocrn[dep], pocln[dep]], dt = dt, 
                resp = [resp_docr, resp_docl, resp_poc], delta = delta, u = u[dep],
                volume = volume[dep], k_half = k_half)
+        o2[dep], docr[dep], docl[dep], pocr[dep], pocl[dep] = mprk_res[0]
+        docr_respiration[dep], docl_respiration[dep], poc_respiration[dep] = [mprk_res[1], mprk_res[2], mprk_res[3]]
+
     
-    
+    # breakpoint()
     # o2 = o2n + dt * consumption * (docrn + docln + pocrn + pocln) * (resp_docr + resp_docl + 2* resp_poc)
     # docr = docrn + dt * consumption * (docrn * resp_docr)
     # docl = docln + dt * consumption * (docln * resp_docl)
@@ -1552,7 +1558,10 @@ def prodcons_module(
            'docr': docr,
            'docl': docl,
            'pocr': pocr,
-           'pocl':pocl}
+           'pocl':pocl,
+           'docr_respiration': docr_respiration,
+           'docl_respiration': docl_respiration,
+           'poc_respiration': poc_respiration}
 
     
     return dat
@@ -1828,6 +1837,9 @@ def run_wq_model(
   pocrm = np.full([nx, nCol], np.nan)
   
   nppm = np.full([nx, nCol], np.nan)
+  docr_respirationm = np.full([nx, nCol], np.nan)
+  docl_respirationm = np.full([nx, nCol], np.nan)
+  poc_respirationm = np.full([nx, nCol], np.nan)
   
   if not kd_light is None:
     def kd(n): # using this shortcut for now / testing if it works
@@ -2065,12 +2077,19 @@ def run_wq_model(
     docl = prodcons_res['docl']
     pocr = prodcons_res['pocr']
     pocl = prodcons_res['pocl']
+    docr_respiration = prodcons_res['docr_respiration']
+    docl_respiration = prodcons_res['docl_respiration']
+    poc_respiration = prodcons_res['poc_respiration']
 
     o2_pd[:, idn] = o2
     docr_pd[:, idn] = docr
     docl_pd[:, idn] = docl
     pocr_pd[:, idn] = pocr
     pocl_pd[:, idn] = pocl
+    
+    docr_respirationm[:, idn] = docr_respiration
+    docl_respirationm[:, idn] = docl_respiration
+    poc_respirationm[:, idn] = poc_respiration
     
     ## (WQ3) TRANSPORT
     transport_res = transport_module(
@@ -2220,6 +2239,9 @@ def run_wq_model(
                'docl': doclm,
                'pocr': pocrm,
                'pocl': poclm,
-               'npp':nppm}
+               'npp':nppm,
+               'docr_respiration': docr_respirationm,
+               'docl_respiration': docl_respirationm,
+               'poc_respiration': poc_respirationm}
   
   return(dat)
