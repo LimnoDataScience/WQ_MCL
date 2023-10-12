@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from numba import jit
 
-os.chdir("/home/robert/Projects/WQ_MCL/src")
-#os.chdir("C:/Users/ladwi/Documents/Projects/R/WQ_MCL/src")
+#os.chdir("/home/robert/Projects/WQ_MCL/src")
+os.chdir("C:/Users/ladwi/Documents/Projects/R/WQ_MCL/src")
 from processBased_lakeModel_functions import get_hypsography, provide_meteorology, initial_profile, run_wq_model, wq_initial_profile, provide_phosphorus, do_sat_calc, calc_dens #, heating_module, diffusion_module, mixing_module, convection_module, ice_module
 
 
@@ -114,13 +114,13 @@ res = run_wq_model(
     rho_snow = 250,
     p_max = 1/86400,
     IP = 3e-5/86400 ,#0.1,
-    delta= 1.08,
+    delta= 1.1, #1.08,
     conversion_constant = 1e-4,#0.1
     sed_sink = -0.01 / 86400,
     k_half = 0.5,
     resp_docr = 0.001/86400, # 0.001
     resp_docl = 0.05/86400, # 0.01
-    resp_poc = 0.1/86400, # 0.1
+    resp_poc = 0.01/86400, # 0.1
     settling_rate = 0.3/86400,
     sediment_rate = 1/86400,
     piston_velocity = 1.0/86400,
@@ -273,7 +273,7 @@ ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens
            linestyles = 'dotted')
 ax.set_ylabel("Depth (m)", fontsize=15)
 ax.set_xlabel("Time", fontsize=15)    
-ax.collections[0].colorbar.set_label("POCr=l  (g/m3)")
+ax.collections[0].colorbar.set_label("POC-labile  (g/m3)")
 xticks_ix = np.array(ax.get_xticks()).astype(int)
 time_label = times[xticks_ix]
 nelement = len(times)//N_pts
@@ -326,7 +326,7 @@ ax.set_yticklabels(depth_label, rotation=0)
 plt.show()
 
 fig, ax = plt.subplots(figsize=(15,5))
-sns.heatmap(docl_respiration , cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 2e-2)
+sns.heatmap(docl_respiration , cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 8e-2)
 ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens(temp), levels=[999],
            colors=['black', 'gray'],
            linestyles = 'dotted')
@@ -346,7 +346,7 @@ plt.show()
 
 
 fig, ax = plt.subplots(figsize=(15,5))
-sns.heatmap(poc_respiration , cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 2e-2)
+sns.heatmap(poc_respiration , cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 3e-1)
 ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens(temp), levels=[999],
            colors=['black', 'gray'],
            linestyles = 'dotted')
