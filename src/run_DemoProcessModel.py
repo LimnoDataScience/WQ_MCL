@@ -118,9 +118,9 @@ res = run_wq_model(
     conversion_constant = 1e-4,#0.1
     sed_sink = -0.01 / 86400,
     k_half = 0.5,
-    resp_docr = 0.001/86400, # 0.001
+    resp_docr = 0.0001/86400, # 0.001
     resp_docl = 0.05/86400, # 0.01
-    resp_poc = 0.01/86400, # 0.1
+    resp_poc = 0.001/86400, # 0.1
     settling_rate = 0.3/86400,
     sediment_rate = 1/86400,
     piston_velocity = 1.0/86400,
@@ -366,7 +366,7 @@ plt.show()
 
 # plt.plot(npp[1,1:400]/volume[1] * 86400)
 # plt.plot(o2[1,:]/volume[1])
-# plt.plot(o2[1,1:(24*100)]/volume[1])
+# plt.plot(o2[1,1:(24*14)]/volume[1])
 # plt.plot(o2[1,:]/volume[1])
 # plt.plot(docl[1,:]/volume[1])
 # plt.plot(docr[1,1:(24*10)]/volume[1])
