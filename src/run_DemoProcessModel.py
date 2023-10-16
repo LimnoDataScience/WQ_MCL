@@ -376,6 +376,13 @@ plt.show()
 # plt.plot(docl_respiration[0,:]/volume[0]*86400)
 # plt.plot(o2[(nx-1),:]/volume[(nx-1)])
 
+plt.plot(o2[1,1:(24*14)]/volume[1]/4, color = 'blue')
+gpp = npp[1,:] -1/86400 *(docl[1,:] * docl_respiration[1,:]+ docr[1,:] * docr_respiration[1,:] + pocl[1,:] * poc_respiration[1,:] + pocr[1,:] * poc_respiration[1,:])
+plt.plot(npp[1,1:(24*14)]/volume[1] * 86400, color = 'yellow') 
+plt.plot(1/86400*(docl[1,1:(24*14)] * docl_respiration[1,1:(24*14)]+ docr[1,1:(24*14)] * docr_respiration[1,1:(24*14)] + pocl[1,1:(24*14)] * poc_respiration[1,1:(24*14)] + pocr[1,1:(24*14)] * poc_respiration[1,1:(24*14)])/volume[1] * 86400, color = 'red') 
+plt.plot(gpp[1:(24*14)]/volume[1] * 86400, color = 'green')
+plt.show() 
+
 plt.plot(times, kd[0,:])
 plt.show()
 
@@ -394,3 +401,4 @@ plt.show()
 # r and npp
 # phosphorus bc
 # ice npp
+# wind mixingS

@@ -1099,6 +1099,133 @@ def mixing_module(
            'tau': tau}
     
     return dat
+
+def thermocline_depth(
+        un,
+        depth,
+        area,
+        volume,
+        dx,
+        dt,
+        nx):
+    
+    breakpoint()
+    
+    Smin = 0.1
+    seasonal = False
+    index = False
+    mixed_cutoff = False
+    
+    temp_diff = un[1:] - un[:-1]
+    if max(temp_diff) - min(temp_diff) < mixed_cutoff:
+        therm = float("NaN")  
+    
+    rho = calc_dens(un)
+    
+    RhoPerc = 0.15
+    numDepths = len(depth)
+    rho_diff = (rho[1:] - rho[:-1]) / (depth[1:] - depth[:-1])
+    
+    
+    
+    
+    return therm
+
+def meta_depths(
+        un,
+        depth,
+        area,
+        volume,
+        dx,
+        dt,
+        nx):
+    
+    
+    
+    return upper, lower
+
+def mixing_module_minlake(
+        un,
+        depth,
+        area,
+        volume,
+        dx,
+        dt,
+        nx,
+        Uw,
+        ice,
+        g = 9.81,
+        Cd = 0.0013,
+        KEice = 1/1000
+        ):
+    
+    u = un
+    start_time = datetime.datetime.now()
+    
+      
+    W_str = 1.0 - exp(-0.3 * max(area/10**6))
+    tau = 1.225 * Cd * Uw ** 2 # wind shear is air density times wind velocity 
+    
+    KE = W_str * max(area/10**6) * sqrt(tau**3/ calc_dens(u[0]) ) * dt
+    
+    therm = thermocline_depth(un = un,
+                              depth = depth,area = area, volume = volume, dx = dx, dt = dt, nx = nx)
+    
+    if ice:
+        KE = 0.0
+        
+    
+    
+    
+    ## (3) TURBULENT MIXING OF MIXED LAYER
+    # the mixed layer depth is determined for each time step by comparing kinetic 
+    # energy available from wind and the potential energy required to completely 
+    # mix the water column to a given depth
+    start_time = datetime.datetime.now()
+    Zcv = np.sum(depth * area) / sum(area)  # center of volume
+    tau = 1.225 * Cd * Uw ** 2 # wind shear is air density times wind velocity 
+    if (Uw <= 15):
+      c10 = 0.0005 * sqrt(Uw)
+    else:
+      c10 = 0.0026
+    
+    un = u
+    shear = sqrt((c10 * calc_dens(un[0]))/1.225) *  Uw # shear velocity
+    # coefficient times wind velocity squared
+    KE = shear *  tau * dt # kinetic energy as function of wind
+    
+    if ice:
+      KE = KE * KEice
+    
+    maxdep = 0
+    for dep in range(0, nx-1):
+      if dep == 0:
+        PE = (abs(g *   depth[dep] *( depth[dep+1] - Zcv)  *
+             # abs(calc_dens(u[dep+1])- calc_dens(u[dep])))
+             abs(calc_dens(u[dep+1])- np.mean(calc_dens(u[0])))))
+      else:
+        PEprior = deepcopy(PE)
+        PE = (abs(g *   depth[dep] *( depth[dep+1] - Zcv)  *
+            # abs(calc_dens(u[dep+1])- calc_dens(u[dep]))) + PEprior
+            abs(calc_dens(u[dep+1])- np.mean(calc_dens(u[0:(dep+1)])))) + PEprior)
+            
+      if PE > KE:
+        maxdep = dep - 1
+        break
+      elif dep > 0 and PE < KE:
+          u[(dep - 1):(dep+1)] = np.sum(u[(dep-1):(dep+1)] * volume[(dep-1):(dep+1)])/np.sum(volume[(dep-1):(dep+1)])
+      
+      maxdep = dep
+      
+
+    end_time = datetime.datetime.now()
+    print("mixing: " + str(end_time - start_time))
+    
+    dat = {'temp': u,
+           'shear': shear,
+           'tau': tau}
+    
+    return dat
     
 def convection_module(
         un,
@@ -2010,19 +2137,19 @@ def run_wq_model(
     kzm[:,idn] = kz
     um_diff[:, idn] = u
     
-    # # (3) MIXING
-    # mixing_res = mixing_module(
-    #     un = u,
-    #     depth = depth,
-    #     area = area,
-    #     volume = volume,
-    #     dx = dx,
-    #     dt = dt,
-    #     nx = nx,
-    #     Uw = Uw(n),
-    #     ice = ice)
+    # (3) MIXING
+    mixing_res = mixing_module_minlake(
+        un = u,
+        depth = depth,
+        area = area,
+        volume = volume,
+        dx = dx,
+        dt = dt,
+        nx = nx,
+        Uw = Uw(n),
+        ice = ice)
     
-    # u = mixing_res['temp']
+    u = mixing_res['temp']
     
     um_mix[:, idn] = u
 
