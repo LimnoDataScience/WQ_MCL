@@ -73,10 +73,22 @@ def eddy_diffusivity_hendersonSellers(rho, depth, g, rho_0, ice, area, U10, lati
     rho_a = 1.2
 
     #depth[0] = depth[1] / 10
+
     
     U2 = U10 * 10
     U2 = U10 * (log((2 - 1e-5)/z0)) / (log((10 - 1e-5)/z0))
     
+    if U2 < 2.2:
+        Cd = 1.08 * U2**(-0.15)* 10**(-3)
+    elif 2.2 <= U2 < 5.0:
+        Cd = (0.771 + 0.858 * U2**(-0.15)) *10**(-3)
+    elif 5.0 <= U2 < 8.0:
+        Cd = (0.867 + 0.0667 * U2**(-0.15)) * 10**(-3)
+    elif 8.0 <= U2 < 25:
+        Cd = (1.2 + 0.025 * U2**(-0.15)) * 10**(-3)
+    elif 25 <= U2 < 50:
+        Cd = 0.073 * U2**(-0.15) * 10**(-3)
+        
     w_star = Cd * U2
     k_star = 6.6 * (sin(radians(latitude)))**(1/2) * U2**(-1.84)
     
@@ -121,14 +133,14 @@ def eddy_diffusivity_hendersonSellers(rho, depth, g, rho_0, ice, area, U10, lati
         kz = kz * 10**4
     elif LST <= 0:
         kz = kz * 0
-            
     
+
     if (np.mean(diff) == 0.0):
         weight = 1
     else:
         weight = weight_kz
     
-    kz[0] = kz[1]
+    #kz[0] = kz[1]
         
     kz = weight * kz + (1 - weight) * diff
 
@@ -194,6 +206,7 @@ def eddy_diffusivity_munkAnderson(rho, depth, g, rho_0, ice, area, U10, latitude
     
     kz = (k * w_star * np.array(depth)) * np.exp(-k_star * np.array(depth)) * f_HS
     
+    kz[0] = kz[1]
     # modify according to Ekman layer depth
     
     tau_w = rho_a * Cd * U2**2
