@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from numba import jit
 
-#os.chdir("/home/robert/Projects/WQ_MCL/src")
-os.chdir("C:/Users/ladwi/Documents/Projects/R/WQ_MCL/src")
+os.chdir("/home/robert/Projects/WQ_MCL/src")
+#os.chdir("C:/Users/ladwi/Documents/Projects/R/WQ_MCL/src")
 from processBased_lakeModel_functions import get_hypsography, provide_meteorology, initial_profile, run_wq_model, wq_initial_profile, provide_phosphorus, do_sat_calc, calc_dens #, heating_module, diffusion_module, mixing_module, convection_module, ice_module
 
 
@@ -32,7 +32,7 @@ meteo_all = provide_meteorology(meteofile = '../input/Mendota_2002.csv',
 ## time step discretization                      
 hydrodynamic_timestep = 24 * dt
 total_runtime =  (365) * hydrodynamic_timestep/dt  #365 *1 # 14 * 365
-startTime =   (120 + 365*12) * hydrodynamic_timestep/dt #150 * 24 * 3600
+startTime =   (140 + 365*12) * hydrodynamic_timestep/dt #150 * 24 * 3600
 endTime =  (startTime + total_runtime) # * hydrodynamic_timestep/dt) - 1
 
 startingDate = meteo_all[0]['date'][startTime] #* hydrodynamic_timestep/dt]
@@ -97,9 +97,9 @@ res = run_wq_model(
     eps = 0.97,
     emissivity = 0.97,
     sigma = 5.67e-8,
-    sw_factor = 1.2,
+    sw_factor = 1.5,
     wind_factor = 1.0,
-    at_factor = 1.2,
+    at_factor = 1.5,
     turb_factor = 1.0,
     p2 = 1,
     B = 0.61,
@@ -153,13 +153,15 @@ docr_respiration = res['docr_respiration']
 docl_respiration = res['docl_respiration']
 poc_respiration = res['poc_respiration']
 kd = res['kd_light']
+thermo_dep = res['thermo_dep']
+energy_ratio = res['energy_ratio']
 
 
 End = datetime.datetime.now()
 print(End - Start)
 
     
-
+plt.plot(times, energy_ratio[0,:])
 
 # heatmap of temps  
 N_pts = 6
@@ -392,6 +394,10 @@ for r in range(0, len(temp[0,:])):
 
 plt.plot(times, o2[0,:]/volume[0], color = 'blue')
 plt.plot(times, do_sat, color = 'red')
+plt.show()
+
+plt.plot(times, thermo_dep[0,:],color= 'blue')
+plt.plot(times, temp[0,:] - temp[(nx-1),:], color = 'red')
 plt.show()
 
 # TODO

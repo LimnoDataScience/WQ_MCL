@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import os
-from math import pi, exp, sqrt, log, atan, sin, radians, nan
+from math import pi, exp, sqrt, log, atan, sin, radians, nan, isinf
 from scipy.interpolate import interp1d
 from copy import deepcopy
 import datetime
@@ -72,7 +72,7 @@ def eddy_diffusivity_hendersonSellers(rho, depth, g, rho_0, ice, area, U10, lati
     kullenberg = 2 * 10**(-2)
     rho_a = 1.2
 
-    depth[0] = depth[1] / 10
+    #depth[0] = depth[1] / 10
     
     U2 = U10 * 10
     U2 = U10 * (log((2 - 1e-5)/z0)) / (log((10 - 1e-5)/z0))
@@ -230,7 +230,7 @@ def eddy_diffusivity_pacanowskiPhilander(rho, depth, g, rho_0, ice, area, U10, l
     K0 = k0 # 10**(-2)
     Kb = 10**(-7)
 
-    depth[0] = depth[1] / 10
+    #depth[0] = depth[1] / 10
     
     U2 = U10 * 10
     U2 = U10 * (log((2 - 1e-5)/z0)) / (log((10 - 1e-5)/z0))
@@ -1100,6 +1100,38 @@ def mixing_module(
     
     return dat
 
+def findPeaks(
+        data,
+        thresh = 0):
+    
+    varL = len(data)
+    locs = np.zeros( varL, dtype = bool)
+    peaks = np.ones(varL)
+    
+    for i in range(1, (varL -1)):
+        dit = data[(i-1):(i+1)]
+        pkI = int(np.where(dit == max(dit))[0])
+        posPeak = max(dit)
+        
+        if pkI == 1:
+            peaks[i] = posPeak
+            locs[i] = True    
+            
+    inds = np.linspace(0, varL-1, varL)
+    locs = inds[locs]
+    
+    if len(locs) >  0:
+        vector = np.vectorize(np.int_)
+    
+        peaks = peaks[vector(locs)]    
+
+        useI = peaks > thresh
+        locs = locs[useI]
+    
+    
+    
+    return locs
+
 def thermocline_depth(
         un,
         depth,
@@ -1109,12 +1141,13 @@ def thermocline_depth(
         dt,
         nx):
     
-    breakpoint()
+    #breakpoint()
+
     
     Smin = 0.1
     seasonal = False
     index = False
-    mixed_cutoff = False
+    mixed_cutoff = 1
     
     temp_diff = un[1:] - un[:-1]
     if max(temp_diff) - min(temp_diff) < mixed_cutoff:
@@ -1122,14 +1155,59 @@ def thermocline_depth(
     
     rho = calc_dens(un)
     
-    RhoPerc = 0.15
+    dRhoPerc = 0.15
     numDepths = len(depth)
     rho_diff = (rho[1:] - rho[:-1]) / (depth[1:] - depth[:-1])
     
+    thermoInd = int(np.where(rho_diff == max(rho_diff))[0])
+    mDrhoZ = rho_diff[rho_diff == max(rho_diff)]
+    thermoD = np.mean(depth[thermoInd:(thermoInd+1)])
     
     
+    if (thermoInd > 1) & (thermoInd < (numDepths -2)):
+        Sdn = - (depth[thermoInd + 1] - depth[thermoInd]) / (rho_diff[thermoInd + 1] - rho_diff[thermoInd])
+        Sup = (depth[thermoInd] - depth[thermoInd -1]) / (rho_diff[thermoInd] - rho_diff[thermoInd -1])
+        
+        upD = depth[thermoInd]
+        dnD = depth[thermoInd + 1]
+        
+        thermoD = dnD * (Sdn / (Sdn + Sup)) + upD * (Sup /(Sdn + Sup))
     
-    return therm
+    dRhoCut = max([dRhoPerc * mDrhoZ, Smin])
+    locs = findPeaks(data = rho_diff, thresh = dRhoCut)
+    
+    vector = np.vectorize(np.int_)
+    
+    if len(locs) == 0:
+        SthermoD = thermoD
+        SthermoInd = thermoInd
+    else:
+        pks = rho_diff[vector(locs)]
+        
+        mDrhoZ = pks[len(pks)-1]
+        SthermoInd = vector(locs[len(pks)-1])
+        
+        if SthermoInd > (thermoInd +1):
+            SthermoD = np.mean(depth[SthermoInd:(SthermoInd+1)])
+            
+            if (SthermoInd > 1) & (SthermoInd < (numDepths -2)):
+                Sdn = - (depth[SthermoInd + 1] - depth[SthermoInd]) / (rho_diff[SthermoInd + 1] - rho_diff[SthermoInd])
+                Sup = (depth[SthermoInd] - depth[SthermoInd -1]) / (rho_diff[SthermoInd] - rho_diff[SthermoInd -1])
+        
+                upD = depth[SthermoInd]
+                dnD = depth[SthermoInd + 1]
+        
+                SthermoD = dnD * (Sdn / (Sdn + Sup)) + upD * (Sup /(Sdn + Sup))
+        else:
+            SthermoD = thermoD
+            SthermoInd = thermoInd
+    
+    if (SthermoD < thermoD):
+        SthermoD = thermoD
+        SthermoInd = thermoInd
+              
+    
+    return thermoD
 
 def meta_depths(
         un,
@@ -1140,9 +1218,85 @@ def meta_depths(
         dt,
         nx):
     
+    #breakpoint()
+    slope = 0.1
+    seasonal = True
+    mxied_cutoff = 1
     
+    vector = np.vectorize(np.int_)
     
-    return upper, lower
+    thermoD = thermocline_depth(un = un, depth =depth, area = area, volume = volume, dx = dx, dt = dt, nx = nx)
+    
+    if len([thermoD]) < 1:
+        upper = float("NaN")  
+        lower = float("NaN")  
+    else:
+        rho = calc_dens(un)
+        
+        dRhoPerc = 0.15
+        numDepths = len(depth)
+        
+        rho_diff = (rho[1:] - rho[:-1]) / (depth[1:] - depth[:-1])
+        
+        metaBot_depth = depth[numDepths-1]
+        metaTop_depth = depth[0]
+        Tdepth = np.ones(numDepths - 1)
+        
+        for i in range(0, (numDepths -1)):
+            Tdepth[i] = np.mean(depth[i:(i+1)])
+        
+        if (thermoD in Tdepth) == False:
+            tmp = np.append(Tdepth, thermoD)
+            tmp.sort()
+        else:
+            tmp = Tdepth
+        
+        sortDepth = tmp
+        numDepths = len(sortDepth)
+        
+        profile_fun = interp1d(Tdepth, rho_diff)
+        out_depths = sortDepth
+        drho_dz = profile_fun(out_depths)
+  
+        thermo_index = np.where(sortDepth == thermoD)
+        thermo_index = np.asarray(thermo_index)
+        thermo_index = int(thermo_index)
+        
+        metaBot_depth_one = thermoD
+        for i in range(int(thermo_index), (numDepths-1)):
+            if drho_dz[i] < slope:
+                metaBot_depth_one = sortDepth[i]
+                break
+        
+        if int(thermo_index) == (numDepths-1):
+            metaBot_depth_one = sortDepth[numDepths-1]
+        
+        if ((i - thermo_index) >= 1) & (drho_dz[thermo_index] > slope):
+            profile_fun = interp1d(drho_dz[thermo_index:(i+1)], sortDepth[thermo_index:(i+1)],  fill_value ='extrapolate')
+            metaBot_depth = profile_fun(slope)
+        
+        metaTop_depth_one = thermoD
+        for i in range(thermo_index, 0,-1):
+            if drho_dz[i] < slope:
+                metaTop_depth_one = sortDepth[i]
+                break
+            
+        if ((thermo_index - i) >= 1) & (drho_dz[thermo_index] > slope):
+            profile_fun = interp1d(drho_dz[i:(thermo_index+1)], sortDepth[i:(thermo_index+1)], fill_value ='extrapolate')
+            metaTop_depth = profile_fun(slope)
+            
+        if (metaTop_depth > thermoD):
+            metaTop_depth = thermoD
+        if (metaBot_depth < thermoD):
+            metaBot_depth = thermoD
+        
+        if metaTop_depth <= 0:
+            metaTop_depth = metaTop_depth_one
+        if metaBot_depth >= max(depth):
+            metaBot_depth = metaBot_depth_one
+       
+    
+    return metaTop_depth, metaBot_depth, thermoD
 
 def mixing_module_minlake(
         un,
@@ -1162,68 +1316,89 @@ def mixing_module_minlake(
     u = un
     start_time = datetime.datetime.now()
     
-      
+    
+ 
     W_str = 1.0 - exp(-0.3 * max(area/10**6))
     tau = 1.225 * Cd * Uw ** 2 # wind shear is air density times wind velocity 
     
-    KE = W_str * max(area/10**6) * sqrt(tau**3/ calc_dens(u[0]) ) * dt
+    KE = W_str * max(area) * sqrt(tau**3/ calc_dens(u[0]) ) * dt
     
-    therm = thermocline_depth(un = un,
-                              depth = depth,area = area, volume = volume, dx = dx, dt = dt, nx = nx)
+    #meta_top, meta_bot, thermD = meta_depths(un = u,
+    #                          depth = depth,area = area, volume = volume, dx = dx, dt = dt, nx = nx)
     
     if ice:
         KE = 0.0
+    
+    
+    #idx = np.where(depth > thermD)
+    #idx = idx[0][0]
+    
+    #breakpoint()
+    WmixIndicator = 1
+    while WmixIndicator == 1:
+        #breakpoint()
+        rho = calc_dens(u)
+        d_rho = (rho[1:] - rho[:-1]) 
+        inx = np.where(d_rho > 0.0)
+        MLD = 0
         
-    
-    
-    
-    ## (3) TURBULENT MIXING OF MIXED LAYER
-    # the mixed layer depth is determined for each time step by comparing kinetic 
-    # energy available from wind and the potential energy required to completely 
-    # mix the water column to a given depth
-    start_time = datetime.datetime.now()
-    Zcv = np.sum(depth * area) / sum(area)  # center of volume
-    tau = 1.225 * Cd * Uw ** 2 # wind shear is air density times wind velocity 
-    if (Uw <= 15):
-      c10 = 0.0005 * sqrt(Uw)
-    else:
-      c10 = 0.0026
-    
-    un = u
-    shear = sqrt((c10 * calc_dens(un[0]))/1.225) *  Uw # shear velocity
-    # coefficient times wind velocity squared
-    KE = shear *  tau * dt # kinetic energy as function of wind
-    
-    if ice:
-      KE = KE * KEice
-    
-    maxdep = 0
-    for dep in range(0, nx-1):
-      if dep == 0:
-        PE = (abs(g *   depth[dep] *( depth[dep+1] - Zcv)  *
-             # abs(calc_dens(u[dep+1])- calc_dens(u[dep])))
-             abs(calc_dens(u[dep+1])- np.mean(calc_dens(u[0])))))
-      else:
-        PEprior = deepcopy(PE)
-        PE = (abs(g *   depth[dep] *( depth[dep+1] - Zcv)  *
-            # abs(calc_dens(u[dep+1])- calc_dens(u[dep]))) + PEprior
-            abs(calc_dens(u[dep+1])- np.mean(calc_dens(u[0:(dep+1)])))) + PEprior)
-            
-      if PE > KE:
-        maxdep = dep - 1
-        break
-      elif dep > 0 and PE < KE:
-          u[(dep - 1):(dep+1)] = np.sum(u[(dep-1):(dep+1)] * volume[(dep-1):(dep+1)])/np.sum(volume[(dep-1):(dep+1)])
-      
-      maxdep = dep
-      
+        inx_array = np.array(inx)
+        if inx_array.size == 0:
+            break
+        #print(inx)
+        zb = int(inx[0][0])
+        
+        if zb == (len(d_rho) -1):
+            break
+        MLD = depth[zb]
+        dD = d_rho[zb]
+        
+        Zg = sum(area[0:(zb+2)] *depth[0:(zb+2)]) / sum(area[0:(zb+2)] )
+        if zb==0:
+            volume_epi = volume[0]
+        else:
+            volume_epi = sum(volume[0:zb]) 
+        V_weight = volume[zb+2] *volume_epi / (volume[zb+2] + volume_epi) 
+        POE = (dD * g * V_weight * (MLD + dx/2 - Zg))
+        
+        
 
+        KP_ratio = KE/POE
+        if KP_ratio > 1:
+            Tmix = sum((volume[0:(zb+2)] * u[0:(zb+2)])) / sum(volume[0:(zb+2)])
+            u[0:(zb+2)] = Tmix
+            
+            KE = KE - POE
+        else:
+            #np.matrix([volume[0:(zb+1)],  KP_ratio * volume[zb+2]])
+            #Tmix = sum(volume[0:(zb+1)])    
+            #KP_ratio * volume[zb+2] * u[0:(zb+2)]
+            #u[0:(zb +1)] = Tmix
+            #u[zb+2] = KP_ratio * Tmix + (1- KP_ratio) * u[zb+2]
+            
+            KE = 0
+            WmixIndicator = 0
+        #print(KE)
+            
+    # epi_dens = np.mean(calc_dens(u[0:idx]))
+    # layer_dens = calc_dens(u[idx])
+    # delta_dens =  (layer_dens - epi_dens) 
+    # epi_volume = sum(volume[0:idx])
+    # layer_volume = volume[idx]
+    # volume_ratio = ((epi_volume * layer_volume)/(epi_volume + layer_volume))
+    # epi_zg = (np.matmul(area[0:idx], depth[0:idx]) * calc_dens(u[0:idx])) / (sum(area[0:idx]) *calc_dens(u[0:idx])) 
+    # delta_depth = meta_top + (depth[idx] - meta_top) -  epi_zg[0]
+    # PE = g *delta_dens * volume_ratio * (delta_depth)
+    
+    energy_ratio = KE
+    
     end_time = datetime.datetime.now()
     print("mixing: " + str(end_time - start_time))
     
     dat = {'temp': u,
-           'shear': shear,
-           'tau': tau}
+           'tau': tau,
+           'thermo_dep': MLD,
+           'energy_ratio': energy_ratio}
     
     return dat
     
@@ -1945,6 +2120,8 @@ def run_wq_model(
   Him= np.full([1,nCol], np.nan)
   Hsm= np.full([1,nCol], np.nan)
   Hsim= np.full([1,nCol], np.nan)
+  thermo_depm = np.full([1,nCol], np.nan)
+  energy_ratiom = np.full([1,nCol], np.nan)
   
 
   um_initial = np.full([nx, nCol], np.nan)
@@ -1996,11 +2173,13 @@ def run_wq_model(
       return kd_light
 
   
-
+  #breakpoint()
   #times = np.arange(startTime, endTime, dt)
   times = np.arange(startTime * dt, endTime * dt, dt)
   for idn, n in enumerate(times):
     
+    print(idn)
+          
     un = deepcopy(u)
     un_initial = un
     #breakpoint()
@@ -2053,6 +2232,8 @@ def run_wq_model(
     u = heating_res['temp']
     IceSnowAttCoeff = heating_res['IceSnowAttCoeff']
     
+    plt.plot(u, color = 'red')
+    
     um_heat[:, idn] = u
     
     ## (5) ICE AND SNOW
@@ -2089,17 +2270,11 @@ def run_wq_model(
     supercooled = ice_res['supercooled']
     rho_snow = ice_res['density_snow']
     
+    plt.plot(u, color = 'blue')
+    
     um_ice[:, idn] = u
     
-        ## (4) CONVECTION
-    convection_res = convection_module(
-        un = u,
-        nx = nx,
-        volume = volume)
-    
-    u = convection_res['temp']
-    
-    um_conv[:, idn] = u
+
     
     dens_u_n2 = calc_dens(u)
     if 'kz' in locals():
@@ -2133,11 +2308,19 @@ def run_wq_model(
     
     u = diffusion_res['temp']
     kz = diffusion_res['diffusivity']
-
+    
+    plt.plot(u, color = 'purple')
+    
     kzm[:,idn] = kz
     um_diff[:, idn] = u
     
     # (3) MIXING
+    if (idn == 3943):
+        print('')
+        #breakpoint()
+    
+    #breakpoint()
+    plt.plot(u)
     mixing_res = mixing_module_minlake(
         un = u,
         depth = depth,
@@ -2149,10 +2332,31 @@ def run_wq_model(
         Uw = Uw(n),
         ice = ice)
     
-    u = mixing_res['temp']
+    plt.plot(u, color = 'green')
+    
+    #breakpoint()
+    
+    u = mixing_res['temp'] 
+    thermo_dep = mixing_res['thermo_dep']
+    energy_ratio = mixing_res['energy_ratio']
     
     um_mix[:, idn] = u
-
+    thermo_depm[0,idn] = thermo_dep
+    energy_ratiom[0, idn] = energy_ratio
+    
+    ## (4) CONVECTION
+    convection_res = convection_module(
+        un = u,
+        nx = nx,
+        volume = volume)
+    
+    u = convection_res['temp']
+    
+    plt.plot(u, color = 'black')
+    #plt.show()
+    
+    um_conv[:, idn] = u
+    
     ## (WQ1) BOUNDARY ADDITION
     boundary_res = boundary_module(
         un = u,
@@ -2401,6 +2605,8 @@ def run_wq_model(
                'docr_respiration': docr_respirationm,
                'docl_respiration': docl_respirationm,
                'poc_respiration': poc_respirationm,
-               'kd_light': kd_lightm}
+               'kd_light': kd_lightm,
+               'thermo_dep': thermo_depm,
+               'energy_ratio': energy_ratiom}
   
   return(dat)
