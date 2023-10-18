@@ -62,7 +62,7 @@ def eddy_diffusivity(rho, depth, g, rho_0, ice, area, T, diff):
     return(kz + km)
 
 ## this is our attempt for turbulence closure, estimating eddy diffusivity
-def eddy_diffusivity_hendersonSellers(rho, depth, g, rho_0, ice, area, U10, latitude, T, diff, Cd, km, weight_kz):
+def eddy_diffusivity_hendersonSellers(rho, depth, g, rho_0, ice, area, U10, latitude, T, diff, Cd, km, weight_kz, k0):
     k = 0.4
     Pr = 1.0
     z0 = 0.0002
@@ -119,6 +119,7 @@ def eddy_diffusivity_hendersonSellers(rho, depth, g, rho_0, ice, area, U10, lati
     
     kz_old = kz
     
+    
     # kz[depth < H_ekman] = kz_ekman / 100
     # kz[0:2] = kz_old[0:2]
     
@@ -149,7 +150,7 @@ def eddy_diffusivity_hendersonSellers(rho, depth, g, rho_0, ice, area, U10, lati
     return(kz +  km)
 
 ## this is our attempt for turbulence closure, estimating eddy diffusivity
-def eddy_diffusivity_munkAnderson(rho, depth, g, rho_0, ice, area, U10, latitude, Cd, T, diff):
+def eddy_diffusivity_munkAnderson(rho, depth, g, rho_0, ice, area, U10, latitude, Cd, T, diff, k0, km, weight_kz):
     k = 0.4
     Pr = 1.0
     z0 = 0.0002
@@ -1323,15 +1324,17 @@ def mixing_module_minlake(
         ice,
         g = 9.81,
         Cd = 0.0013,
-        KEice = 1/1000
-        ):
+        KEice = 1/1000,
+        W_str = None):
     
     u = un
     start_time = datetime.datetime.now()
     
     
- 
-    W_str = 1.0 - exp(-0.3 * max(area/10**6))
+    if W_str is None:
+        W_str = 1.0 - exp(-0.3 * max(area/10**6))
+    else:
+        W_str = W_str
     tau = 1.225 * Cd * Uw ** 2 # wind shear is air density times wind velocity 
     
     KE = W_str * max(area) * sqrt(tau**3/ calc_dens(u[0]) ) * dt
@@ -2000,15 +2003,16 @@ def transport_module(
             mn[k] = alpha[k] * docln[k-1] + (area[k] - 2 * alpha[k]) * docln[k] + alpha[k] * docln[k+1]
         docl = np.linalg.solve(y, mn) * volume
         
+   
     sinking_loss_pocl = pocln *  settling_rate/dx
     pocl[:-1] = pocln[:-1] - dt * sinking_loss_pocl[:-1]
     pocl[1:] = pocl[1:] + dt * sinking_loss_pocl[:-1]
-    pocl[(nx-1)] = pocl[(nx-1)] + dt * pocl[(nx-1)] * sediment_rate/dx
+    pocl[(nx-1)] = pocl[(nx-1)] - dt * pocl[(nx-1)] * sediment_rate/dx
     
     sinking_loss_pocr = pocrn *  settling_rate/dx
     pocr[:-1] = pocrn[:-1] - dt * sinking_loss_pocr[:-1]
     pocr[1:] = pocr[1:] + dt * sinking_loss_pocr[:-1]
-    pocr[(nx-1)] = pocr[(nx-1)] + dt * pocr[(nx-1)] * sediment_rate/dx
+    pocr[(nx-1)] = pocr[(nx-1)] - dt * pocr[(nx-1)] * sediment_rate/dx
 
 
     end_time = datetime.datetime.now()
@@ -2096,7 +2100,8 @@ def run_wq_model(
   piston_velocity = 1.0,
   light_water = 0.125,
   light_doc = 0.02,
-  light_poc = 0.7):
+  light_poc = 0.7,
+  W_str = None):
     
   ## linearization of driver data, so model can have dynamic step
   Jsw_fillvals = tuple(daily_meteo.Shortwave_Radiation_Downwelling_wattPerMeterSquared.values[[0, -1]])
@@ -2296,7 +2301,7 @@ def run_wq_model(
         kz = u * 0.0
         
     if diffusion_method == 'hendersonSellers':
-        kz = eddy_diffusivity_hendersonSellers(dens_u_n2, depth, g, np.mean(dens_u_n2) , ice, area, Uw(n),  43.100948, u, kz, Cd, km, weight_kz) / 1
+        kz = eddy_diffusivity_hendersonSellers(dens_u_n2, depth, g, np.mean(dens_u_n2) , ice, area, Uw(n),  43.100948, u, kz, Cd, km, weight_kz, k0) / 1
     elif diffusion_method == 'munkAnderson':
         kz = eddy_diffusivity_munkAnderson(dens_u_n2, depth, g, np.mean(dens_u_n2) , ice, area, Uw(n),  43.100948, Cd, u, kz) / 1
     elif diffusion_method == 'hondzoStefan':
@@ -2343,7 +2348,8 @@ def run_wq_model(
         dt = dt,
         nx = nx,
         Uw = Uw(n),
-        ice = ice)
+        ice = ice, 
+        W_str = W_str)
     
     plt.plot(u, color = 'green')
     

@@ -86,10 +86,10 @@ res = run_wq_model(
     Hsi = 0,
     iceT = 6,
     supercooled = 0,
-    diffusion_method = 'hendersonSellers',#'pacanowskiPhilander',# 'hendersonSellers', 'munkAnderson' 'hondzoStefan'
+    diffusion_method = 'pacanowskiPhilander',#'pacanowskiPhilander',# 'hendersonSellers', 'munkAnderson' 'hondzoStefan'
     scheme ='implicit',
     km = 1.4 * 10**(-7), # 4 * 10**(-6), 
-    k0 = 2 * 10**(-2),
+    k0 = 1 * 10**(-2),
     weight_kz = 0.5,
     kd_light = 0.6, 
     denThresh = 1e-2,
@@ -97,9 +97,9 @@ res = run_wq_model(
     eps = 0.97,
     emissivity = 0.97,
     sigma = 5.67e-8,
-    sw_factor = 1.5,
-    wind_factor = 1.5,
-    at_factor = 1.5,
+    sw_factor = 1.3,
+    wind_factor = 1.3,
+    at_factor = 1.3,
     turb_factor = 1.0,
     p2 = 1,
     B = 0.61,
@@ -118,16 +118,17 @@ res = run_wq_model(
     conversion_constant = 1e-4,#0.1
     sed_sink = -0.01 / 86400,
     k_half = 0.5,
-    resp_docr = 0.0001/86400, # 0.001
-    resp_docl = 0.05/86400, # 0.01
-    resp_poc = 0.001/86400, # 0.1
+    resp_docr = 0.0001/86400, # 0.001 0.0001
+    resp_docl = 0.05/86400, # 0.01 0.05
+    resp_poc = 0.001/86400, # 0.1 0.001
     settling_rate = 0.3/86400,
-    sediment_rate = 1/86400,
+    sediment_rate = 0.3/86400,
     piston_velocity = 1.0/86400,
     light_water = 0.125,
     light_doc = 0.02,
     light_poc = 0.7,
-    mean_depth = sum(volume)/max(area))
+    mean_depth = sum(volume)/max(area),
+    W_str = 2)
 
 temp=  res['temp']
 o2=  res['o2']
@@ -169,7 +170,7 @@ N_pts = 6
 
 
 fig, ax = plt.subplots(figsize=(15,5))
-sns.heatmap(temp, cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 35)
+sns.heatmap(temp, cmap=plt.cm.get_cmap('Spectral_r'),  xticklabels=1000, yticklabels=2, vmin = 0, vmax = 30)
 ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens(temp), levels=[999],
            colors=['black', 'gray'],
            linestyles = 'dotted')
