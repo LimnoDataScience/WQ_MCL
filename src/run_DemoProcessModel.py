@@ -113,14 +113,14 @@ res = run_wq_model(
     pgdl_mode = 'on',
     rho_snow = 250,
     p_max = 1/86400,
-    IP = 3e-5/86400 ,#0.1,
+    IP = 3e-5/86400 ,#0.1, 3e-5
     delta= 1.1, #1.08,
     conversion_constant = 1e-4,#0.1
     sed_sink = -0.01 / 86400,
     k_half = 0.5,
     resp_docr = 0.0001/86400, # 0.001 0.0001
     resp_docl = 0.05/86400, # 0.01 0.05
-    resp_poc = 0.001/86400, # 0.1 0.001
+    resp_poc = 0.0001/86400, # 0.1 0.001
     settling_rate = 0.3/86400,
     sediment_rate = 0.3/86400,
     piston_velocity = 1.0/86400,
@@ -379,14 +379,16 @@ plt.show()
 # plt.plot(docl_respiration[0,:]/volume[0]*86400)
 # plt.plot(o2[(nx-1),:]/volume[(nx-1)])
 
-plt.plot(o2[1,1:(24*14)]/volume[1]/4, color = 'blue')
+plt.plot(o2[1,1:(24*14)]/volume[1]/4, color = 'blue', label = 'O2')
 gpp = npp[1,:] -1/86400 *(docl[1,:] * docl_respiration[1,:]+ docr[1,:] * docr_respiration[1,:] + pocl[1,:] * poc_respiration[1,:] + pocr[1,:] * poc_respiration[1,:])
-plt.plot(npp[1,1:(24*14)]/volume[1] * 86400, color = 'yellow') 
-plt.plot(1/86400*(docl[1,1:(24*14)] * docl_respiration[1,1:(24*14)]+ docr[1,1:(24*14)] * docr_respiration[1,1:(24*14)] + pocl[1,1:(24*14)] * poc_respiration[1,1:(24*14)] + pocr[1,1:(24*14)] * poc_respiration[1,1:(24*14)])/volume[1] * 86400, color = 'red') 
-plt.plot(gpp[1:(24*14)]/volume[1] * 86400, color = 'green')
+plt.plot(npp[1,1:(24*14)]/volume[1] * 86400, color = 'yellow', label = 'NPP') 
+plt.plot(1/86400*(docl[1,1:(24*14)] * docl_respiration[1,1:(24*14)]+ docr[1,1:(24*14)] * docr_respiration[1,1:(24*14)] + pocl[1,1:(24*14)] * poc_respiration[1,1:(24*14)] + pocr[1,1:(24*14)] * poc_respiration[1,1:(24*14)])/volume[1] * 86400, color = 'red', label = 'R') 
+plt.plot(gpp[1:(24*14)]/volume[1] * 86400, color = 'green', label = 'GPP')
+plt.legend(loc='best')
 plt.show() 
 
 plt.plot(times, kd[0,:])
+plt.ylabel("kd (/m)")
 plt.show()
 
 do_sat = o2[0,:] * 0.0
@@ -397,7 +399,7 @@ plt.plot(times, o2[0,:]/volume[0], color = 'blue')
 plt.plot(times, do_sat, color = 'red')
 plt.show()
 
-plt.plot(times, thermo_dep[0,:],color= 'blue')
+plt.plot(times, thermo_dep[0,:]*dx,color= 'blue')
 plt.plot(times, temp[0,:] - temp[(nx-1),:], color = 'red')
 plt.show()
 

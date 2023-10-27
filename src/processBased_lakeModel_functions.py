@@ -273,21 +273,21 @@ def eddy_diffusivity_pacanowskiPhilander(rho, depth, g, rho_0, ice, area, U10, l
     
     # modify according to Ekman layer depth
     
-    tau_w = rho_a * Cd * U2**2
-    tau_w = w_star
-    u_star = sqrt(tau_w / rho_0)
-    H_ekman = 0.4 * u_star / f
+    # tau_w = rho_a * Cd * U2**2
+    # tau_w = w_star
+    # u_star = sqrt(tau_w / rho_0)
+    # H_ekman = 0.4 * u_star / f
     
-    e_w = xi * sqrt(Cd) * U2
-    W_eff = e_w / (xi * sqrt(Cd))
-    kz_ekman = 1/f * (rho_a / rho_0 * Cd / kullenberg)**2 * W_eff**2
+    # e_w = xi * sqrt(Cd) * U2
+    # W_eff = e_w / (xi * sqrt(Cd))
+    # kz_ekman = 1/f * (rho_a / rho_0 * Cd / kullenberg)**2 * W_eff**2
     
-    kz[depth < H_ekman] = kz_ekman 
+    # kz[depth < H_ekman] = kz_ekman 
     
-    #breakpoint()
-    kz_reduced = kz_ekman * np.exp(-np.array(depth)[depth >= H_ekman])
-    kz_reduced[kz_reduced < k0] = k0
-    kz[depth >= H_ekman] =  kz_reduced / (1 + 5 * Ri[depth >= H_ekman]) + Kb
+    # #breakpoint()
+    # kz_reduced = kz_ekman * np.exp(-np.array(depth)[depth >= H_ekman])
+    # kz_reduced[kz_reduced < k0] = k0
+    # kz[depth >= H_ekman] =  kz_reduced / (1 + 5 * Ri[depth >= H_ekman]) + Kb
     
     #breakpoint()
 
@@ -1314,6 +1314,11 @@ def meta_depths(
 
 def mixing_module_minlake(
         un,
+        o2n,
+        docln,
+        docrn,
+        pocln,
+        pocrn,
         depth,
         area,
         volume,
@@ -1345,11 +1350,16 @@ def mixing_module_minlake(
     if ice:
         KE = 0.0
     
-    
+    o2 =o2n
+    docl =docln
+    docr =docrn
+    pocl =pocln
+    pocr = pocrn
     #idx = np.where(depth > thermD)
     #idx = idx[0][0]
     
     #breakpoint()
+    zb = 0
     WmixIndicator = 1
     while WmixIndicator == 1:
         #breakpoint()
@@ -1384,6 +1394,18 @@ def mixing_module_minlake(
             Tmix = sum((volume[0:(zb+2)] * u[0:(zb+2)])) / sum(volume[0:(zb+2)])
             u[0:(zb+2)] = Tmix
             
+            o2mix = sum((volume[0:(zb+2)] * o2n[0:(zb+2)])) / sum(volume[0:(zb+2)])
+            docrmix = sum((volume[0:(zb+2)] * docrn[0:(zb+2)])) / sum(volume[0:(zb+2)])
+            doclmix = sum((volume[0:(zb+2)] * docln[0:(zb+2)])) / sum(volume[0:(zb+2)])
+            pocrmix = sum((volume[0:(zb+2)] * pocrn[0:(zb+2)])) / sum(volume[0:(zb+2)])
+            poclmix = sum((volume[0:(zb+2)] * pocln[0:(zb+2)])) / sum(volume[0:(zb+2)])
+            o2[0:(zb+2)] = o2mix
+            docr[0:(zb+2)] = docrmix
+            docl[0:(zb+2)] = doclmix
+            pocr[0:(zb+2)] = pocrmix
+            pocl[0:(zb+2)] = poclmix
+    
+            
             KE = KE - POE
         else:
             #np.matrix([volume[0:(zb+1)],  KP_ratio * volume[zb+2]])
@@ -1412,8 +1434,13 @@ def mixing_module_minlake(
     print("mixing: " + str(end_time - start_time))
     
     dat = {'temp': u,
+           'o2': o2,
+           'docr': docr,
+           'docl': docl,
+           'pocr': pocr,
+           'pocl':pocl,
            'tau': tau,
-           'thermo_dep': MLD,
+           'thermo_dep': zb,
            'energy_ratio': energy_ratio}
     
     return dat
@@ -1923,12 +1950,27 @@ def transport_module(
         diffusion_method = 'hondzoStefan',
         scheme = 'implicit',
         settling_rate = 0.3,
-        sediment_rate = 0.03):
+        sediment_rate = 0.03,
+        thermo_dep = 0.0):
 
     u = un
     dens_u_n2 = calc_dens(un)
     
     kz = kzn
+    
+    zb = thermo_dep
+    
+  
+    # o2mix = sum((volume[0:(zb+2)] * o2n[0:(zb+2)])) / sum(volume[0:(zb+2)])
+    # docrmix = sum((volume[0:(zb+2)] * docrn[0:(zb+2)])) / sum(volume[0:(zb+2)])
+    # doclmix = sum((volume[0:(zb+2)] * docln[0:(zb+2)])) / sum(volume[0:(zb+2)])
+    # pocrmix = sum((volume[0:(zb+2)] * pocrn[0:(zb+2)])) / sum(volume[0:(zb+2)])
+    # poclmix = sum((volume[0:(zb+2)] * pocln[0:(zb+2)])) / sum(volume[0:(zb+2)])
+    # o2n[0:(zb+2)] = o2mix
+    # docrn[0:(zb+2)] = docrmix
+    # docln[0:(zb+2)] = doclmix
+    # pocrn[0:(zb+2)] = pocrmix
+    # pocln[0:(zb+2)] = poclmix
     
     o2n = o2n / volume
     docrn = docrn / volume 
@@ -1936,6 +1978,7 @@ def transport_module(
     pocr = pocrn
     pocl = pocln
     
+
 
     start_time = datetime.datetime.now()
     if scheme == 'implicit':
@@ -2013,7 +2056,22 @@ def transport_module(
     pocr[:-1] = pocrn[:-1] - dt * sinking_loss_pocr[:-1]
     pocr[1:] = pocr[1:] + dt * sinking_loss_pocr[:-1]
     pocr[(nx-1)] = pocr[(nx-1)] - dt * pocr[(nx-1)] * sediment_rate/dx
+    
+    # o2mix = sum((volume[0:(zb+2)] * o2[0:(zb+2)])) / sum(volume[0:(zb+2)])
+    # docrmix = sum((volume[0:(zb+2)] * docr[0:(zb+2)])) / sum(volume[0:(zb+2)])
+    # doclmix = sum((volume[0:(zb+2)] * docl[0:(zb+2)])) / sum(volume[0:(zb+2)])
+    # pocrmix = sum((volume[0:(zb+2)] * pocr[0:(zb+2)])) / sum(volume[0:(zb+2)])
+    # poclmix = sum((volume[0:(zb+2)] * pocl[0:(zb+2)])) / sum(volume[0:(zb+2)])
+    # o2[0:(zb+2)] = o2mix
+    # docr[0:(zb+2)] = docrmix
+    # docl[0:(zb+2)] = doclmix
+    # pocr[0:(zb+2)] = pocrmix
+    # pocl[0:(zb+2)] = poclmix
 
+    if pocr[(nx-1)] < 0:
+        pocr[(nx-1)]  = 0
+    if pocl[(nx-1)] < 0:
+        pocl[(nx-1)]  = 0
 
     end_time = datetime.datetime.now()
     print("wq transport: " + str(end_time - start_time))
@@ -2332,49 +2390,7 @@ def run_wq_model(
     kzm[:,idn] = kz
     um_diff[:, idn] = u
     
-    # (3) MIXING
-    if (idn == 3943):
-        print('')
-        #breakpoint()
     
-    #breakpoint()
-    plt.plot(u)
-    mixing_res = mixing_module_minlake(
-        un = u,
-        depth = depth,
-        area = area,
-        volume = volume,
-        dx = dx,
-        dt = dt,
-        nx = nx,
-        Uw = Uw(n),
-        ice = ice, 
-        W_str = W_str)
-    
-    plt.plot(u, color = 'green')
-    
-    #breakpoint()
-    
-    u = mixing_res['temp'] 
-    thermo_dep = mixing_res['thermo_dep']
-    energy_ratio = mixing_res['energy_ratio']
-    
-    um_mix[:, idn] = u
-    thermo_depm[0,idn] = thermo_dep
-    energy_ratiom[0, idn] = energy_ratio
-    
-    ## (4) CONVECTION
-    convection_res = convection_module(
-        un = u,
-        nx = nx,
-        volume = volume)
-    
-    u = convection_res['temp']
-    
-    plt.plot(u, color = 'black')
-    #plt.show()
-    
-    um_conv[:, idn] = u
     
     ## (WQ1) BOUNDARY ADDITION
     boundary_res = boundary_module(
@@ -2470,6 +2486,22 @@ def run_wq_model(
     docl_respirationm[:, idn] = docl_respiration
     poc_respirationm[:, idn] = poc_respiration
     
+    
+    dens_u_n2 = calc_dens(u)
+    if 'kz' in locals():
+        1+1
+    else: 
+        kz = u * 0.0
+        
+    if diffusion_method == 'hendersonSellers':
+        kz = eddy_diffusivity_hendersonSellers(dens_u_n2, depth, g, np.mean(dens_u_n2) , ice, area, Uw(n),  43.100948, u, kz, Cd, km, weight_kz, k0) / 1
+    elif diffusion_method == 'munkAnderson':
+        kz = eddy_diffusivity_munkAnderson(dens_u_n2, depth, g, np.mean(dens_u_n2) , ice, area, Uw(n),  43.100948, Cd, u, kz) / 1
+    elif diffusion_method == 'hondzoStefan':
+        kz = eddy_diffusivity(dens_u_n2, depth, g, np.mean(dens_u_n2) , ice, area, u, kz) / 86400
+    elif diffusion_method == 'pacanowskiPhilander':
+        kz = eddy_diffusivity_pacanowskiPhilander(dens_u_n2, depth, g, np.mean(dens_u_n2) , ice, area, Uw(n),  43.100948, u, kz, Cd, km, weight_kz, k0) / 1
+    
     ## (WQ3) TRANSPORT
     transport_res = transport_module(
         un = u,
@@ -2508,6 +2540,59 @@ def run_wq_model(
     # print(o2_pd[:, idn]/volume)
     # print(o2_diff[:, idn]/volume)
     # breakpoint()
+    # (3) MIXING
+    if (idn == 3943):
+        print('')
+        #breakpoint()
+    
+    #breakpoint()
+    plt.plot(u)
+    mixing_res = mixing_module_minlake(
+        un = u,
+        o2n = o2,
+        docrn = docr,
+        docln = docl,
+        pocrn = pocr,
+        pocln = pocl,
+        depth = depth,
+        area = area,
+        volume = volume,
+        dx = dx,
+        dt = dt,
+        nx = nx,
+        Uw = Uw(n),
+        ice = ice, 
+        W_str = W_str)
+    
+    plt.plot(u, color = 'green')
+    
+    #breakpoint()
+    
+    u = mixing_res['temp'] 
+    thermo_dep = mixing_res['thermo_dep']
+    energy_ratio = mixing_res['energy_ratio']
+    o2 = mixing_res['o2']
+    docr = mixing_res['docr']
+    docl = mixing_res['docl']
+    pocr = mixing_res['pocr']
+    pocl = mixing_res['pocl']
+
+    um_mix[:, idn] = u
+    thermo_depm[0,idn] = thermo_dep
+    energy_ratiom[0, idn] = energy_ratio
+    
+    ## (4) CONVECTION
+    convection_res = convection_module(
+        un = u,
+        nx = nx,
+        volume = volume)
+    
+    u = convection_res['temp']
+    
+    plt.plot(u, color = 'black')
+    #plt.show()
+    
+    um_conv[:, idn] = u
     
     o2m[:, idn] = o2
     docrm[:, idn] = docr
