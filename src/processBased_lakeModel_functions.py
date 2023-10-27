@@ -1350,11 +1350,19 @@ def mixing_module_minlake(
     if ice:
         KE = 0.0
     
-    o2 =o2n
-    docl =docln
-    docr =docrn
-    pocl =pocln
-    pocr = pocrn
+    o2 =o2n/volume
+    docl =docln/volume
+    docr =docrn/volume
+    pocl =pocln/volume
+    pocr = pocrn/volume
+    
+    o2n =o2n/volume
+    docln =docln/volume
+    docrn =docrn/volume
+    pocln =pocln/volume
+    pocrn = pocrn/volume
+    
+
     #idx = np.where(depth > thermD)
     #idx = idx[0][0]
     
@@ -1399,6 +1407,8 @@ def mixing_module_minlake(
             doclmix = sum((volume[0:(zb+2)] * docln[0:(zb+2)])) / sum(volume[0:(zb+2)])
             pocrmix = sum((volume[0:(zb+2)] * pocrn[0:(zb+2)])) / sum(volume[0:(zb+2)])
             poclmix = sum((volume[0:(zb+2)] * pocln[0:(zb+2)])) / sum(volume[0:(zb+2)])
+            
+            #breakpoint()
             o2[0:(zb+2)] = o2mix
             docr[0:(zb+2)] = docrmix
             docl[0:(zb+2)] = doclmix
@@ -1427,6 +1437,13 @@ def mixing_module_minlake(
     # epi_zg = (np.matmul(area[0:idx], depth[0:idx]) * calc_dens(u[0:idx])) / (sum(area[0:idx]) *calc_dens(u[0:idx])) 
     # delta_depth = meta_top + (depth[idx] - meta_top) -  epi_zg[0]
     # PE = g *delta_dens * volume_ratio * (delta_depth)
+    
+    
+    o2 =o2n*volume
+    docl =docln*volume
+    docr =docrn*volume
+    pocl =pocln*volume
+    pocr = pocrn*volume
     
     energy_ratio = KE
     
