@@ -1402,11 +1402,11 @@ def mixing_module_minlake(
             Tmix = sum((volume[0:(zb+2)] * u[0:(zb+2)])) / sum(volume[0:(zb+2)])
             u[0:(zb+2)] = Tmix
             
-            o2mix = sum((volume[0:(zb+2)] * o2n[0:(zb+2)])) / sum(volume[0:(zb+2)])
-            docrmix = sum((volume[0:(zb+2)] * docrn[0:(zb+2)])) / sum(volume[0:(zb+2)])
-            doclmix = sum((volume[0:(zb+2)] * docln[0:(zb+2)])) / sum(volume[0:(zb+2)])
-            pocrmix = sum((volume[0:(zb+2)] * pocrn[0:(zb+2)])) / sum(volume[0:(zb+2)])
-            poclmix = sum((volume[0:(zb+2)] * pocln[0:(zb+2)])) / sum(volume[0:(zb+2)])
+            o2mix = sum((volume[0:(zb+2)] * o2[0:(zb+2)])) / sum(volume[0:(zb+2)])
+            docrmix = sum((volume[0:(zb+2)] * docr[0:(zb+2)])) / sum(volume[0:(zb+2)])
+            doclmix = sum((volume[0:(zb+2)] * docl[0:(zb+2)])) / sum(volume[0:(zb+2)])
+            pocrmix = sum((volume[0:(zb+2)] * pocr[0:(zb+2)])) / sum(volume[0:(zb+2)])
+            poclmix = sum((volume[0:(zb+2)] * pocl[0:(zb+2)])) / sum(volume[0:(zb+2)])
             
             #breakpoint()
             o2[0:(zb+2)] = o2mix
@@ -1418,11 +1418,38 @@ def mixing_module_minlake(
             
             KE = KE - POE
         else:
-            #np.matrix([volume[0:(zb+1)],  KP_ratio * volume[zb+2]])
-            #Tmix = sum(volume[0:(zb+1)])    
-            #KP_ratio * volume[zb+2] * u[0:(zb+2)]
-            #u[0:(zb +1)] = Tmix
-            #u[zb+2] = KP_ratio * Tmix + (1- KP_ratio) * u[zb+2]
+            #breakpoint()
+            volume_res = volume[0:(zb+1)]
+            volume_res = np.append(volume_res, KP_ratio * volume[(zb+2)])
+            temp_res = u[0:(zb+2)]
+            Tmix = sum(volume_res * temp_res) / sum(volume_res)
+            u[0:(zb +1)] = Tmix
+            u[(zb +2)] = KP_ratio * Tmix + (1 - KP_ratio) *u[zb+2]
+            
+            o2_res = o2[0:(zb+2)]
+            o2mix = sum(volume_res * o2_res) / sum(volume_res)
+            o2[0:(zb +1)] = o2mix
+            o2[(zb +2)] = KP_ratio * o2mix + (1 - KP_ratio) *o2[zb+2]
+            
+            docl_res = docl[0:(zb+2)]
+            doclmix = sum(volume_res * docl_res) / sum(volume_res)
+            docl[0:(zb +1)] = doclmix
+            docl[(zb +2)] = KP_ratio * doclmix + (1 - KP_ratio) *docl[zb+2]
+            
+            docr_res = docr[0:(zb+2)]
+            docrmix = sum(volume_res * docr_res) / sum(volume_res)
+            docr[0:(zb +1)] = docrmix
+            docr[(zb +2)] = KP_ratio * docrmix + (1 - KP_ratio) *docr[zb+2]
+            
+            pocl_res = pocl[0:(zb+2)]
+            poclmix = sum(volume_res * pocl_res) / sum(volume_res)
+            pocl[0:(zb +1)] = poclmix
+            pocl[(zb +2)] = KP_ratio * poclmix + (1 - KP_ratio) *pocl[zb+2]
+            
+            pocr_res = pocr[0:(zb+2)]
+            pocrmix = sum(volume_res * pocr_res) / sum(volume_res)
+            pocr[0:(zb +1)] = pocrmix
+            pocr[(zb +2)] = KP_ratio * pocrmix + (1 - KP_ratio) *pocr[zb+2]
             
             KE = 0
             WmixIndicator = 0
