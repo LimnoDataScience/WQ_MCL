@@ -1,5 +1,8 @@
 # Water Quality - Modular Compositional Learning (WQ-MCL)
 
+## model name
+One-dimensional Aquatic Ecosystem Model in Python (1DAEMpy)
+
 ## authors
 Robert Ladwig, Bennett McAfee, Paul C Hanson
 
