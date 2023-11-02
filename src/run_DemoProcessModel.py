@@ -217,7 +217,7 @@ ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens
            linestyles = 'dotted')
 ax.set_ylabel("Depth (m)", fontsize=15)
 ax.set_xlabel("Time", fontsize=15)    
-ax.collections[0].colorbar.set_label("DOCl  (g/m3)")
+ax.collections[0].colorbar.set_label("DOC-labile  (g/m3)")
 xticks_ix = np.array(ax.get_xticks()).astype(int)
 time_label = times[xticks_ix]
 nelement = len(times)//N_pts
@@ -237,7 +237,7 @@ ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens
            linestyles = 'dotted')
 ax.set_ylabel("Depth (m)", fontsize=15)
 ax.set_xlabel("Time", fontsize=15)    
-ax.collections[0].colorbar.set_label("DOCr  (g/m3)")
+ax.collections[0].colorbar.set_label("DOC-refractory  (g/m3)")
 xticks_ix = np.array(ax.get_xticks()).astype(int)
 time_label = times[xticks_ix]
 nelement = len(times)//N_pts
@@ -257,7 +257,7 @@ ax.contour(np.arange(.5, temp.shape[1]), np.arange(.5, temp.shape[0]), calc_dens
            linestyles = 'dotted')
 ax.set_ylabel("Depth (m)", fontsize=15)
 ax.set_xlabel("Time", fontsize=15)    
-ax.collections[0].colorbar.set_label("POCr  (g/m3)")
+ax.collections[0].colorbar.set_label("POC-refractory  (g/m3)")
 xticks_ix = np.array(ax.get_xticks()).astype(int)
 time_label = times[xticks_ix]
 nelement = len(times)//N_pts

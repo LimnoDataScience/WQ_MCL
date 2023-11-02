@@ -1,0 +1,3 @@
+[submodule "1D-AEMpy"]
+	path = 1D-AEMpy
+	url = https://github.com/robertladwig/1D-AEMpy
